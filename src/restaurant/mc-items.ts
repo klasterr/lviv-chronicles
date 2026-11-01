@@ -20,7 +20,7 @@ export class McItem extends Item {
   constructor(readonly menu: MenuItem) {
     if (!geo.has(menu.kind)) geo.set(menu.kind, LOOK[menu.kind]())
     const [g, radius, cy, fragments] = geo.get(menu.kind)!
-    super(menu.name, g, { radius, cy, fragments })
+    super(menu.name, g, { radius, cy, fragments, edible: menu.kind === 'drink' ? 'drink' : 'eat' })
   }
 }
 

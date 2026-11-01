@@ -11,9 +11,9 @@ const FEET = [1.7, 1.2 + 0.45, 1.8 - 0.17, 1.7] // shortcut: a seated figure is 
 const HAND = [new THREE.Vector3(0.24, 0.85, 0.12), new THREE.Vector3(-0.24, 0.85, 0.12)]
 
 /** A small cube in the colour of what someone carries or throws. shortcut: not the real model (that needs an item factory by kind, e.g. makeItem(key)). */
-export function standIn(radius: number, colours: number[]) {
+export function standIn(radius: number, colours: number[], name = '') {
   const s = Math.min(0.3, radius * 1.4)
-  return new Item('', box(s, s, s, colours[0], 0, s / 2, 0), { radius, fragments: colours })
+  return new Item(name, box(s, s, s, colours[0], 0, s / 2, 0), { radius, fragments: colours })
 }
 
 function hash(id: string) { let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h) }
@@ -31,7 +31,8 @@ function label(text: string) {
   return s
 }
 
-interface Avatar { root: THREE.Group; tag: THREE.Sprite | null; name: string; pose: PoseMsg | null; yaw: number; heldKey: string; held: Item[] }
+interface Avatar { root: THREE.Group; tag: THREE.Sprite | null; name: string; pose: PoseMsg | null; yaw: number; heldKey: string; held: Item[]; flinch: number }
+const FLINCH = 0.4 // s a figure reels back after being hit
 
 /** Other players: a figure per peer that glides towards the last pose it sent, its name above its head. */
 export class Avatars {
@@ -46,8 +47,9 @@ export class Avatars {
     let a = this.list.get(id)
     if (!a) {
       const h = hash(id), fig = buildFigure({ shirt: SHIRTS[h % SHIRTS.length], hair: HAIR[(h >> 4) % HAIR.length], long: (h >> 8) % 3 === 0 }, this.shadows)
-      a = { root: fig.group, tag: null, name: '', pose: null, yaw: 0, heldKey: '', held: [] }
+      a = { root: fig.group, tag: null, name: '', pose: null, yaw: 0, heldKey: '', held: [], flinch: 0 }
       a.root.visible = false // until the first pose arrives
+      a.root.rotation.order = 'YXZ' // the flinch leans back around the figure's own x axis
       this.group.add(a.root); this.list.set(id, a)
     }
     return a
@@ -86,6 +88,17 @@ export class Avatars {
     return null
   }
 
+  /** Id of the player whose body is at `p` (not `except`), if any; that figure reels back. */
+  hitAt(p: THREE.Vector3, except?: string) {
+    for (const [id, a] of this.list) {
+      const f = a.root.position
+      if (id === except || !a.pose || Math.hypot(f.x - p.x, f.z - p.z) > 0.4 || p.y < f.y || p.y > f.y + 1.85) continue
+      a.flinch = FLINCH
+      return id
+    }
+    return null
+  }
+
   /** Current (smoothed) position and heading of a player; heading in the camera yaw convention, like Player.heading. */
   at(id: string) { const a = this.list.get(id); return a?.pose ? { x: a.root.position.x, z: a.root.position.z, a: a.yaw } : null }
 
@@ -96,6 +109,7 @@ export class Avatars {
       a.root.position.lerp(this.v.set(p.p[0], p.p[1] - FEET[p.m], p.p[2]), k)
       a.yaw += (((p.p[3] - a.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * k
       a.root.rotation.y = a.yaw + Math.PI // the figure faces +z, camera yaw 0 looks along -z
+      if (a.flinch > 0) { a.flinch = Math.max(0, a.flinch - dt); a.root.rotation.x = -0.3 * Math.sin(Math.PI * a.flinch / FLINCH) }
     }
   }
 }

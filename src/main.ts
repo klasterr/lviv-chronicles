@@ -16,6 +16,8 @@ import { Shops } from './shops/shops'
 import { Opera } from './opera/opera'
 import { Items } from './items/items'
 import { Musician } from './musician/musician'
+import { BalloonGirl } from './balloons/seller'
+import { Animators } from './animators/animators'
 import { addSky } from './world/sky'
 import { sfx } from './audio/sfx'
 import { AudioSystem } from './audio/system'
@@ -56,6 +58,10 @@ const restaurant = f35 && (() => {
   return new Restaurant(game.scene, city.colliders, player, game.camera, city.bounds, { x: d.x, z: d.z, nx: f35.n[0], nz: f35.n[1] }, shadows, items)
 })()
 game.systems.push(player, items, sitting, scooters, grandpas, musician, sky.system, props, avenue)
+const balloons = new BalloonGirl(data, game.scene, city.colliders, player, items) // balloon seller by the dry fountain (balloons/)
+game.systems.push(balloons)
+const animators = new Animators(data, game.scene, player, game.camera, shadows, items, () => [...scooters.act, ...musician.act, ...balloons.act]) // donkey, Sonic and Labubu costumes strolling the boulevard: hug (E) / handshake (H) (animators/)
+game.systems.push(animators)
 if (restaurant) game.systems.push(restaurant)
 const shops = new Shops(game.scene, city.colliders, player, game.camera, city.bounds, data.street?.fronts, shadows, items) // the bookshop, coffee shop, pharmacy and Viennese cafe you can walk into (shops/)
 game.systems.push(shops)
@@ -63,7 +69,7 @@ const opera = Opera.make(game.scene, city.colliders, player, game.camera, city.b
 if (opera) game.systems.push(opera)
 if (sfx.enabled) game.systems.push(new AudioSystem({ player, camera: game.camera, items, musician, restaurant: restaurant || undefined, fountain: data.street?.fountain, overlay })) // procedural sound (audio/); starts on the first click
 // phone: on-screen controls; the buttons are the systems' current actions (sit, scooter, chess); the menu button pauses
-if (isTouch) game.systems.push(new TouchControls(player, () => [...sitting.act, ...scooters.act, ...grandpas.act, ...musician.act, ...items.act, ...(restaurant?.act ?? []), ...shops.act, ...(opera?.act ?? [])], () => { player.touchActive = false; overlay.style.display = 'grid'; pausedAt = performance.now() }))
+if (isTouch) game.systems.push(new TouchControls(player, () => [...sitting.act, ...scooters.act, ...grandpas.act, ...musician.act, ...balloons.act, ...animators.act, ...items.act, ...(restaurant?.act ?? []), ...shops.act, ...(opera?.act ?? [])], () => { player.touchActive = false; overlay.style.display = 'grid'; pausedAt = performance.now() }))
 // compile shaders and upload textures behind the loading screen instead of stalling the first seconds of play
 await game.renderer.compileAsync(game.scene, game.camera)
 game.frame(0)
@@ -86,7 +92,7 @@ nick.onkeydown = nick.onkeyup = (e) => { e.stopPropagation(); if (e.key === 'Ent
 nick.onchange = () => { localStorage.setItem('name', nick.value.trim()); net?.rename(nick.value.trim() || 'Гість') }
 // multiplayer (net/): loaded after start-up so it never delays the city; ?solo = alone, ?room=xyz = a private room
 let net: import('./net/net').Net | undefined
-if (!/[?&]solo/.test(location.search)) {
+if (!/[?&]solo\b/.test(location.search)) {
   msg.append(nick)
   import('./net/net').then(({ Net }) => {
     const room = new URLSearchParams(location.search).get('room')?.slice(0, 40) || 'main'

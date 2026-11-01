@@ -20,12 +20,13 @@ const LOOK: Record<string, () => Look> = {
   sacher: () => plate([part(new THREE.CylinderGeometry(0.075, 0.075, 0.055, 3, 1, false, 0, Math.PI * 0.45), 0x3a1d12, T(-0.02, 0.043, 0)), box(0.04, 0.012, 0.02, 0xd8a050, 0.04, 0.025, 0.05)], [0x3a1d12, 0xd8a050]),
 }
 const geo = new Map<string, Look>() // one geometry per kind, shared by every piece
+const EDIBLE: Record<string, 'eat' | 'drink'> = { espresso: 'drink', cappuccino: 'drink', vienna: 'drink', strudel: 'eat', sacher: 'eat' } // books, beans and medicine are not
 
 /** Something from a shop's counter or shelf: a generic Item that only knows what it is (look by good id). */
 export class ShopItem extends Item {
   constructor(readonly good: Good) {
     if (!geo.has(good.id)) geo.set(good.id, LOOK[good.id]())
     const [g, radius, cy, fragments] = geo.get(good.id)!
-    super(good.name, g, { radius, cy, fragments })
+    super(good.name, g, { radius, cy, fragments, edible: EDIBLE[good.id] })
   }
 }

@@ -26,6 +26,7 @@ export class Player implements System {
   private wantStand = false // set by a movement key press while seated, consumed in update (a tap between frames still counts)
   private jumpQueued = false
   private lastSpace = 0
+  private shake = 0 // s left of the wobble after being hit
 
   constructor(
     private camera: THREE.PerspectiveCamera, dom: HTMLElement, private colliders: Colliders,
@@ -114,7 +115,18 @@ export class Player implements System {
     this.seat = null; this.jumpQueued = false; this.lastSpace = 0
   }
 
+  /** Something thrown hit you, flying along (dx, dz) (unit): a shove that way, a hop, the view flinches and wobbles. Seated / riding: only the flinch. */
+  hitBy(dx: number, dz: number) {
+    this.camera.rotation.x = THREE.MathUtils.clamp(this.camera.rotation.x + 0.1, -1.5, 1.5)
+    this.shake = 0.35
+    if (this.ride) { this.ride.speed *= 0.5; return }
+    if (this.seat) return
+    this.vel.x += dx * 6; this.vel.z += dz * 6
+    if (!this.flying && this.vy === 0) this.vy = 2.5
+  }
+
   update(dt: number) {
+    if (this.shake > 0) { this.shake = Math.max(0, this.shake - dt); this.camera.rotation.z = Math.sin(this.shake * 70) * 0.05 * (this.shake / 0.35) } // roll only: zero again when it ends
     if (!this.active) { this.vel.set(0, 0, 0); this.jumpQueued = false; return }
     const p = this.camera.position
 

@@ -139,6 +139,9 @@ const R = {
   breakCup: (s, o, t) => { glass(s, o, t); ticks(s, o, t, 4, true) },
   breakFood: (s, o, t) => { crunch(s, o, t); ticks(s, o, t, 3, false) },
   breakTray: (s, o, t) => { glass(s, o, t); crunch(s, o, t + 0.02); s.tone(o, t, 'sine', 100, 50, 0.2, 0.4); ticks(s, o, t, 8, true); ticks(s, o, t, 5, false) },
+  hit: (s, o, t) => { s.tone(o, t, 'sine', 140, 45, 0.22, 0.9); s.hiss(o, t, 'lowpass', 1200, 300, 0.7, 0.12, 0.6); s.tone(o, t + 0.05, 'sawtooth', 260, 170, 0.18, 0.12, 0.02) }, // something hit you: body thud + a short "oof"
+  bite: (s, o, t) => { s.hiss(o, t, 'bandpass', rnd(1800, 2600), 900, 1.2, 0.09, 0.45); s.tone(o, t, 'sine', 180, 90, 0.06, 0.25) },
+  sip: (s, o, t) => { s.tone(o, t, 'sine', rnd(260, 320), 160, 0.12, 0.3, 0.02); s.hiss(o, t, 'lowpass', 700, 400, 1.5, 0.1, 0.18, 0.02) }, // one gulp
 } satisfies Record<string, Fn>
 
 export const sfx = new Sfx()

@@ -10,6 +10,8 @@ import { Item, Tray } from '../src/items/item'
 import { CAP, TIP_R, canTip, coinSlot, shownCoins } from '../src/musician/tip'
 import { SHOPS, GOODS, MAX_UNITS, shopSpan, shopDoor, signCovered, cartTotal, cartPieces, describe as describeCart, units as cartUnits, type Cart } from '../src/shops/spec'
 import { STEPS, STEP_S, distGain, fingerpick, itemClass, panFor, pluck, schedule, stepVol, stride } from '../src/audio/logic'
+import { loop } from '../src/animators/route'
+import { readFileSync } from 'node:fs'
 
 // Bolt parkings: 2 zones x SLOTS scooters, each parked with its nose towards the fountain / monument
 const st = { fountain: { x: -25, z: -178, yaw: 0.38 }, monument: { x: 70, z: 67, yaw: -2.74 } }
@@ -207,5 +209,16 @@ assert.equal(itemClass({ contents: [] }), 'tray'); assert.equal(itemClass({ menu
   assert.ok(tierSeats().length > 40 && tierSeats().every((s) => s.y === t1.y))
   const near = owalk(0, 6, 0, [[0.8, -2]]); assert.ok(Math.abs(near.x) < 1.3 + 0.35, 'aisle stays free')
   const row = owalk(2.3, 0.2 + 0.8, 0, [[2.3, -6]]); assert.ok(row.z > -0.9, 'you cannot walk through the row of seats in front')
+}
+{ // costumed animators' loop (animators/route.ts) on the real boulevard data: continuous, wraps, clear of every bench, tree, lamp, bin, the fountain and the monument
+  const street = JSON.parse(readFileSync(new URL('../public/city.json', import.meta.url), 'utf8')).street
+  const r = loop(street.ribbons), obst: number[][] = [...street.benches, ...street.trees, ...street.lamps, ...street.chess, ...Object.values(street.osm as Record<string, number[][]>).flat(), [street.drinking.x, street.drinking.z]]
+  assert.ok(r.len > 300 && Math.hypot(r.at(r.len).x - r.at(0).x, r.at(r.len).z - r.at(0).z) < 1e-6, 'loop wraps')
+  for (let s = 0, prev = r.at(0); s < r.len; s += 0.25) {
+    const q = r.at(s)
+    assert.ok(Math.hypot(q.x - prev.x, q.z - prev.z) < 0.26, 'no jumps'); prev = q
+    assert.ok(obst.every((o) => Math.hypot(q.x - o[0], q.z - o[1]) > 2), 'clear of street furniture')
+    assert.ok(Math.hypot(q.x - street.fountain.x, q.z - street.fountain.z) > 20 && Math.hypot(q.x - street.monument.x, q.z - street.monument.z) > 30, 'off the fountain and the monument square')
+  }
 }
 console.log('collide ok')

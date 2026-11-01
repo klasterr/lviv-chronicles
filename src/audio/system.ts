@@ -28,6 +28,7 @@ export class AudioSystem implements System {
     const cls = (it: Item) => itemClass(it as never) // McItem has .menu, Tray has .contents
     d.items.onPickup = (it) => { const k = cls(it); sfx.play(k === 'cup' ? 'pickCup' : k === 'tray' ? 'pickTray' : 'pick') }
     d.items.onThrow = () => sfx.play('throw')
+    d.items.onBite = (it) => sfx.play(it.edible === 'drink' ? 'sip' : 'bite')
     d.items.onBreak = (it, at) => { const k = cls(it); sfx.play(k === 'cup' ? 'breakCup' : k === 'tray' ? 'breakTray' : 'breakFood', at) }
     d.musician.onTip = () => sfx.play('coin', d.musician.casePosition)
     addEventListener('keydown', (e) => { if (e.code === 'KeyM' && !e.repeat) sfx.toggleMute() })

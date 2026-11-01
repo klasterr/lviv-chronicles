@@ -5,6 +5,9 @@ import type { Player } from '../player/player'
 import type { Sitting } from '../player/sitting'
 import type { Scooters } from '../world/scooters'
 import type { Items } from '../items/items'
+import type { Item } from '../items/item'
+import { sfx } from '../audio/sfx'
+import { speechBubble } from '../bubble'
 import { Avatars, standIn } from './avatars'
 import { newer, readGone, readName, readPose, readScoot, readSnapshotScoot, readThrow, type PoseMsg, type ScootRec, type ThrowMsg } from './sync'
 
@@ -28,6 +31,8 @@ export class Net implements System {
   private wait = 0
   private throwLog = new Map<string, number[]>()
   private sendPose; private sendHello; private sendScoot
+  private flash = document.createElement('div')
+  private bubble = speechBubble('#c0392b', '18%')
 
   constructor(private d: NetDeps, private name: string, roomId: string) {
     this.avatars = new Avatars(d.scene, d.shadows)
@@ -56,8 +61,18 @@ export class Net implements System {
       this.throwLog.set(peerId, log)
       const t = readThrow(m); if (!t || log.length >= THROWS) return
       log.push(now)
-      const it = standIn(t.r, t.c); it.mesh.position.set(...t.p)
+      const it = standIn(t.r, t.c, t.n); it.mesh.position.set(...t.p); it.thrower = peerId
       d.items.throwRemote(it, ...t.v)
+    }
+    // every client flies every throw itself and checks it against the bodies it sees; only the one who was hit feels it (its own true position decides)
+    // shortcut: thrower and target may disagree about a near miss by the network lag (~0.1 s); fine for a snowball fight, not for scoring
+    d.items.hitTest = (p, it) => {
+      const hit = this.avatars.hitAt(p, it.thrower)
+      if (hit) { if (!it.thrower) this.bubble.say(`Влучання: ${this.avatars.list.get(hit)?.name || 'гравець'}!`, 2); return true }
+      const me = d.player.position
+      if (!it.thrower || Math.hypot(me.x - p.x, me.z - p.z) > 0.4 || p.y > me.y + 0.25 || p.y < me.y - 1.75) return false
+      this.feel(it.thrower, it)
+      return true
     }
 
     d.scooters.onChange = (i) => this.stamp(i)
@@ -68,9 +83,22 @@ export class Net implements System {
     d.items.onThrow = (it, at) => {
       thrown?.(it, at)
       const p = it.mesh.position, v = it.vel
-      thr.send({ p: [r2(p.x), r2(p.y), r2(p.z)], v: [r2(v.x), r2(v.y), r2(v.z)], r: it.radius, c: it.fragments.slice(0, 8) })
+      thr.send({ p: [r2(p.x), r2(p.y), r2(p.z)], v: [r2(v.x), r2(v.y), r2(v.z)], r: it.radius, c: it.fragments.slice(0, 8), n: it.name })
     }
     addEventListener('pagehide', () => void room.leave()) // the others drop our figure at once instead of after a timeout
+    this.flash.style.cssText = 'position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .5s;background:radial-gradient(circle,transparent 45%,rgba(200,0,0,.55))'
+    document.body.append(this.flash)
+  }
+
+  /** Another player's throw hit us: shove, flinch, thud, red edges, a buzz on phones, and who it was. */
+  private feel(from: string, it: Item) {
+    const h = Math.hypot(it.vel.x, it.vel.z) || 1
+    this.d.player.hitBy(it.vel.x / h, it.vel.z / h)
+    sfx.play('hit')
+    navigator.vibrate?.(150)
+    this.flash.style.transition = 'none'; this.flash.style.opacity = '1'
+    requestAnimationFrame(() => { this.flash.style.transition = 'opacity .5s'; this.flash.style.opacity = '0' })
+    this.bubble.say(`У вас влучили${it.name ? ': ' + it.name : ''} — це ${this.avatars.list.get(from)?.name || 'хтось'}!`, 3)
   }
 
   /** Players connected right now (not counting us). */
@@ -110,7 +138,7 @@ export class Net implements System {
 
   update(dt: number) {
     const { player, scooters, camera } = this.d
-    this.avatars.update(dt)
+    this.avatars.update(dt); this.bubble.tick(dt)
     scooters.items.forEach((s, i) => { // scooters other players ride go where they go
       if (s.state !== 'ridden' || s.by === selfId) return
       const at = this.avatars.at(s.by); if (at) scooters.follow(i, at.x, at.z, at.a)

@@ -4,6 +4,7 @@ import type { Player } from '../player/player'
 import type { Colliders } from '../world/colliders'
 import { isTouch, type Action } from '../device'
 import { heldMat, worldMat, Tray, type Item } from './item'
+import { Balloon } from '../balloons/balloon'
 
 const REACH = 3        // metres from which an item can be picked up
 const HANDS = 2        // a tray needs both, a loose item one
@@ -13,6 +14,9 @@ const MAX_AGE = 8      // s: a throw that never lands (out of the map) is droppe
 const FRAGMENTS = 60   // pooled break pieces
 const HAND = [new THREE.Vector3(0.3, -0.3, -0.55), new THREE.Vector3(-0.3, -0.3, -0.55)] // camera space: right hand, left hand
 const TRAY_HAND = new THREE.Vector3(0, -0.52, -0.8) // low, so a carried tray does not hide the view
+const MOUTH = new THREE.Vector3(0, -0.22, -0.36)    // camera space: where food goes to be eaten (low enough not to hide the view)
+const MEAL = 1.4                                     // s from lifting it to the mouth to finished
+const BITES = [0.45, 0.8, 1.15]                      // s: when each bite / gulp happens
 
 type Hook = ((item: Item, at: THREE.Vector3) => void) | null
 interface Piece { p: THREE.Vector3; v: THREE.Vector3; life: number; floor: number }
@@ -27,12 +31,18 @@ export class Items implements System {
   /** What the crosshair is on right now (also read by Restaurant: E at the counter takes an item before it opens the menu). */
   aim: { item: Item; tray: Tray | null } | null = null
   onPickup: Hook = null; onThrow: Hook = null; onBreak: Hook = null
+  /** Each bite or gulp while eating / drinking (sound). */
+  onBite: Hook = null
+  /** Asked every frame for every flying item: did it hit a player at `at`? true = it breaks there (src/net handles who felt it). */
+  hitTest: ((at: THREE.Vector3, item: Item) => boolean) | null = null
   /** Ids of shared items (shop shelves, opera leaflets) that someone has taken: such an item is gone for every player (src/net). */
   readonly gone = new Set<string>()
   private byId = new Map<string, Item>()
   private rest = new Set<Item>()
   private hands: Item[] = []
   private flying: { item: Item; age: number }[] = []
+  private eating: { item: Item; t: number; from: THREE.Vector3; bites: number } | null = null
+  private yum = 0 // s left to show "Смачно!" after a meal
   private pieces: Piece[] = []
   private chips: THREE.InstancedMesh
   private colors: THREE.Color[] = []
@@ -48,7 +58,7 @@ export class Items implements System {
     scene.add(this.chips)
     addEventListener('keydown', (e) => {
       if (e.repeat || !this.can()) return
-      if (e.code === 'KeyE') this.pick(false); else if (e.code === 'KeyT') this.pick(true); else if (e.code === 'KeyQ') this.throwHeld()
+      if (e.code === 'KeyE') this.pick(false); else if (e.code === 'KeyT') this.pick(true); else if (e.code === 'KeyQ') this.throwHeld(); else if (e.code === 'KeyX') this.eat()
     })
   }
 
@@ -98,8 +108,18 @@ export class Items implements System {
     this.onPickup?.(it, this.player.position)
   }
 
+  /** Put a new item (a purchase) straight into the hands; false if there is no room. */
+  give(it: Item) {
+    if (this.used() + it.hands > HANDS) return false
+    it.state = 'held'; it.setMaterial(heldMat, 10)
+    this.hands.push(it)
+    this.onPickup?.(it, this.player.position)
+    return true
+  }
+
   private throwHeld() {
     const it = this.hands.pop(); if (!it) return
+    if (it instanceof Balloon) return it.release(this.camera.rotation.y) // let go: it floats away, nothing breaks (no onThrow: src/net would broadcast a breaking throw)
     const d = this.camera.getWorldDirection(this.dir)
     it.mesh.position.copy(this.camera.position).addScaledVector(d, 0.5); it.mesh.position.y -= 0.35 // base of the item, just in front of the hand
     it.setMaterial(worldMat, 0); it.state = 'flying'; it.mesh.visible = true
@@ -107,6 +127,39 @@ export class Items implements System {
     it.spin.set(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5)
     this.flying.push({ item: it, age: 0 })
     this.onThrow?.(it, it.mesh.position)
+  }
+
+  /** The food or drink X would take: the last one in hand, else the last one on a carried tray. */
+  private meal(): Item | null {
+    for (let i = this.hands.length - 1; i >= 0; i--) {
+      const h = this.hands[i]
+      if (h.edible) return h
+      if (h instanceof Tray) for (let j = h.contents.length - 1; j >= 0; j--) if (h.contents[j].edible) return h.contents[j]
+    }
+    return null
+  }
+
+  /** Eat or drink: it goes to the mouth, three bites / gulps, gone. Works seated on a bench too. */
+  private eat() {
+    const it = this.meal(); if (!it || this.eating || !this.can()) return
+    const from = it.mesh.getWorldPosition(new THREE.Vector3()).sub(this.camera.position).applyQuaternion(this.q.copy(this.camera.quaternion).invert())
+    if (it.container) { it.container.contents.splice(it.container.contents.indexOf(it), 1); it.container = null; it.mesh.removeFromParent() }
+    else this.hands.splice(this.hands.indexOf(it), 1)
+    this.scene.add(it.mesh)
+    this.eating = { item: it, t: 0, from, bites: 0 }
+  }
+
+  private chew(dt: number) {
+    const e = this.eating; if (!e) return
+    const it = e.item, m = it.mesh
+    e.t += dt
+    m.position.lerpVectors(e.from, MOUTH, Math.min(1, e.t / 0.35)).applyQuaternion(this.camera.quaternion).add(this.camera.position)
+    m.quaternion.copy(this.camera.quaternion)
+    if (it.edible === 'drink') m.quaternion.multiply(this.q.setFromEuler(this.e.set(Math.min(1, Math.max(0, (e.t - 0.3) / 0.3)) * 1.1, 0, 0))) // tip the cup towards you
+    while (e.bites < BITES.length && e.t >= BITES[e.bites]) { e.bites++; this.onBite?.(it, this.player.position) }
+    if (it.edible === 'eat') m.scale.setScalar(Math.max(0.05, 1 - e.bites / BITES.length))
+    m.visible = !this.player.riding
+    if (e.t >= MEAL) { m.removeFromParent(); m.scale.setScalar(1); this.eating = null; this.yum = 1.5 }
   }
 
   private shatter(f: { item: Item; age: number }) {
@@ -122,14 +175,22 @@ export class Items implements System {
     this.onBreak?.(it, p)
   }
 
+  /** hitTest along this frame's flight segment in 15 cm steps (at 10 m/s and a slow frame an item moves ~1 m: it must not skip a body). Moves `p` to the hit. */
+  private hits(from: THREE.Vector3, p: THREE.Vector3, it: Item) {
+    if (!this.hitTest) return false
+    const n = Math.max(1, Math.ceil(from.distanceTo(p) / 0.15))
+    for (let i = 1; i <= n; i++) if (this.hitTest(this.v.lerpVectors(from, p, i / n), it)) { p.copy(this.v); return true }
+    return false
+  }
+
   private fly(dt: number) {
     for (const f of [...this.flying]) {
-      const it = f.item, p = it.mesh.position
+      const it = f.item, p = it.mesh.position, from = this.c.copy(p)
       it.vel.y -= GRAVITY * dt; p.addScaledVector(it.vel, dt)
       this.e.set(it.spin.x * dt, it.spin.y * dt, it.spin.z * dt); it.mesh.quaternion.premultiply(this.q.setFromEuler(this.e))
       const w = { x: p.x, z: p.z }
       this.colliders.resolve(w, 0.1, p.y)
-      if (Math.hypot(w.x - p.x, w.z - p.z) > 1e-4 || p.y <= this.colliders.groundAt(p.x, p.z, p.y) + 0.02 || (f.age += dt) > MAX_AGE) this.shatter(f)
+      if (this.hits(from, p, it) || Math.hypot(w.x - p.x, w.z - p.z) > 1e-4 || p.y <= this.colliders.groundAt(p.x, p.z, p.y) + 0.02 || (f.age += dt) > MAX_AGE) this.shatter(f)
     }
   }
 
@@ -161,7 +222,7 @@ export class Items implements System {
   }
 
   update(dt: number) {
-    this.fly(dt); this.chipsStep(dt)
+    this.fly(dt); this.chipsStep(dt); this.chew(dt)
     let slot = 0
     for (const it of this.hands) { // carried things follow the view
       const off = it.hands === 2 ? TRAY_HAND : HAND[slot]; slot += it.hands
@@ -189,10 +250,14 @@ export class Items implements System {
       }
     }
     const last = this.hands[this.hands.length - 1]
-    if (walking && last) this.act.push({ label: 'Кинути: ' + last.name, fire: () => this.throwHeld() })
-    this.hint.style.display = hint && !isTouch ? 'block' : 'none'
+    const verb = last instanceof Balloon ? 'відпустити' : 'кинути' // a balloon floats away instead of flying
+    if (walking && last) this.act.push({ label: verb[0].toUpperCase() + verb.slice(1) + ': ' + last.name, fire: () => this.throwHeld() })
+    const meal = this.can() && !this.eating ? this.meal() : null, eatLabel = meal ? (meal.edible === 'drink' ? 'Випити: ' : 'З’їсти: ') + meal.name : ''
+    if (meal) this.act.push({ label: eatLabel, fire: () => this.eat() })
+    if (this.yum > 0 && (this.yum -= dt) > 0 && !hint) hint = 'Смачно!'
+    this.hint.style.display = hint && (!isTouch || hint === 'Смачно!') ? 'block' : 'none'
     if (this.hint.textContent !== hint) this.hint.textContent = hint
-    const held = last && this.can() ? 'У руках: ' + this.hands.map((h) => h.name).join(', ') + (isTouch ? '' : ' · Q — кинути') : ''
+    const held = last && this.can() ? 'У руках: ' + this.hands.map((h) => h.name).join(', ') + (isTouch ? '' : ' · Q — ' + verb + (meal ? ' · X — ' + eatLabel[0].toLowerCase() + eatLabel.slice(1) : '')) : ''
     this.hold.style.display = held ? 'block' : 'none'
     if (this.hold.textContent !== held) this.hold.textContent = held
   }

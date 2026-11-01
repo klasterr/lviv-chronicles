@@ -12,7 +12,7 @@ export type ScootRec = { i: number; s: ScootState; x: number; z: number; a: numb
 
 /** Player pose, 10 times a second. m: 0 walk, 1 seated, 2 riding scooter `s`, 3 flying; h = held things as [radius, ...fragment colours]. */
 export type PoseMsg = { p: [number, number, number, number]; m: number; s: number; h: number[][] }
-export type ThrowMsg = { p: [number, number, number]; v: [number, number, number]; r: number; c: number[] }
+export type ThrowMsg = { p: [number, number, number]; v: [number, number, number]; r: number; c: number[]; n: string } // n = what it is ("Біг Мак")
 
 const LIM = 5000 // metres: the city plus the interior rooms beyond its edge
 const PEER = /^[\w-]{1,40}$/
@@ -52,8 +52,10 @@ export function readPose(v: unknown): PoseMsg | null {
 export function readThrow(v: unknown): ThrowMsg | null {
   if (!isObj(v) || !Array.isArray(v.p) || !Array.isArray(v.v) || v.p.length !== 3 || v.v.length !== 3) return null
   if (!v.p.every((n) => num(n)) || !v.v.every((n) => num(n, 50)) || !num(v.r, 1) || (v.r as number) <= 0 || !colours(v.c)) return null
-  return { p: v.p as ThrowMsg['p'], v: v.v as ThrowMsg['v'], r: v.r as number, c: v.c as number[] }
+  return { p: v.p as ThrowMsg['p'], v: v.v as ThrowMsg['v'], r: v.r as number, c: v.c as number[], n: clean(v.n, 32) ?? '' }
 }
+
+const clean = (s: unknown, max: number) => (typeof s === 'string' ? s.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, max) || null : null)
 
 export function readGone(v: unknown): string[] | null {
   return Array.isArray(v) && v.length <= 500 && v.every((id) => typeof id === 'string' && ITEM_ID.test(id)) ? v : null
@@ -61,7 +63,5 @@ export function readGone(v: unknown): string[] | null {
 
 /** Display name: plain text, at most 16 characters (it is drawn on a canvas, never parsed as HTML). */
 export function readName(v: unknown): string | null {
-  if (!isObj(v) || typeof v.n !== 'string') return null
-  const n = v.n.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 16)
-  return n || null
+  return isObj(v) ? clean(v.n, 16) : null
 }

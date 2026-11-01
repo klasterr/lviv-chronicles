@@ -9,6 +9,7 @@ export interface ItemOpts {
   cy?: number        // height of that sphere's centre above the item's base
   hands?: number     // hands needed to carry it
   fragments?: number[] // colours of the pieces it breaks into
+  edible?: 'eat' | 'drink' // X eats / drinks it while it is in your hands
 }
 
 /**
@@ -23,13 +24,15 @@ export class Item {
   state: 'rest' | 'held' | 'flying' = 'rest'
   container: Tray | null = null // set while the item lies on a tray
   id?: string // shared items only: the same thing for every player (Items.add)
+  thrower?: string // peer id of the player who threw it (another player's throw); unset = thrown by us
+  readonly edible?: 'eat' | 'drink'
   readonly vel = new THREE.Vector3()
   readonly spin = new THREE.Vector3()
   private frag: number[]
 
   constructor(readonly name: string, geo: THREE.BufferGeometry, o: ItemOpts = {}) {
     this.mesh = new THREE.Mesh(geo, worldMat); this.mesh.userData.keep = true // items are carried through doors: interiors/portal.ts must not hide them
-    this.radius = o.radius ?? 0.1; this.cy = o.cy ?? this.radius; this.hands = o.hands ?? 1; this.frag = o.fragments ?? [0xdddddd]
+    this.radius = o.radius ?? 0.1; this.cy = o.cy ?? this.radius; this.hands = o.hands ?? 1; this.frag = o.fragments ?? [0xdddddd]; this.edible = o.edible
   }
 
   /** Colours of what it breaks into (a tray adds its contents). */
