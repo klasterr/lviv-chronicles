@@ -68,6 +68,7 @@ export class Player implements System {
   get active() { return this.controls.isLocked || this.touchActive }
 
   get seated() { return this.seat !== null }
+  get seatAt() { return this.seat && { x: this.seat.x, z: this.seat.z } }
   get riding() { return this.ride !== null }
   get speedMs() { return this.ride?.speed ?? 0 }
   get heading() { return this.ride?.a ?? 0 }

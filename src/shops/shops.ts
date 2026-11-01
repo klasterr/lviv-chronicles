@@ -51,7 +51,7 @@ export class Shops implements System {
         build: async (o) => {
           const [rooms, goods] = await (this.mods ??= Promise.all([import('./rooms'), import('./goods')]))
           const room = rooms.buildRoom(spec, o, this.colliders, this.shadows)
-          for (const s of room.shelf) this.items.add(new goods.ShopItem(GOODS[spec.kind].find((g) => g.id === s.id)!), o.x + s.x, s.y, o.z + s.z) // a few goods on tables and the counter: pick up, throw, break
+          room.shelf.forEach((s, i) => this.items.add(new goods.ShopItem(GOODS[spec.kind].find((g) => g.id === s.id)!), o.x + s.x, s.y, o.z + s.z, `shop:${spec.slot}:${i}`)) // a few goods on tables and the counter: pick up, throw, break
           return room
         },
       })

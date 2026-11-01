@@ -47,7 +47,7 @@ export class Opera implements System {
       build: async (o) => { // the room, its colliders and the leaflets exist only after the first visit
         const [{ buildHall }, { Programme }] = await Promise.all([import('./interior'), import('./usher')])
         addOperaColliders(colliders, o.x, o.z)
-        for (const dx of [-0.45, 0, 0.45]) this.items.add(new Programme(), o.x + OP.desk.x + dx, 0.995, o.z + OP.desk.z + 0.05)
+        for (const [i, dx] of [-0.45, 0, 0.45].entries()) this.items.add(new Programme(), o.x + OP.desk.x + dx, 0.995, o.z + OP.desk.z + 0.05, `prog:${i}`)
         return buildHall(o.x, o.z, shadows)
       },
     })

@@ -10,6 +10,8 @@ const REACH = 4 // metres from which a bench can be clicked
 export class Sitting implements System {
   /** What the touch UI should offer right now. */
   act: Action[] = []
+  /** Is this spot on a bench already taken by another player (set by src/net)? */
+  taken: ((x: number, z: number) => boolean) | null = null
   private dir = new THREE.Vector3()
   private aim: { x: number; z: number; yaw: number; standX: number; standZ: number } | null = null
   private cross = this.el('div', 'position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#fff;box-shadow:0 0 3px #000;opacity:.7;pointer-events:none;display:none')
@@ -47,7 +49,7 @@ export class Sitting implements System {
         const sx = THREE.MathUtils.clamp(hit.lx, -(b.hw - 0.45), b.hw - 0.45) // sit where you aimed, not past the ends
         const at = (lx: number, lz: number) => [b.x + lx * c + lz * s, b.z - lx * s + lz * c]
         const [x, z] = at(sx, 0), [standX, standZ] = at(sx, b.hd + 0.65)
-        this.aim = { x, z, yaw: b.yaw + Math.PI, standX, standZ } // camera forward = bench front (local +z)
+        if (!this.taken?.(x, z)) this.aim = { x, z, yaw: b.yaw + Math.PI, standX, standZ } // camera forward = bench front (local +z)
       }
     }
     this.act = !walking ? [] : this.player.seated ? [{ label: 'Підвестися', fire: () => this.activate() }] : this.aim ? [{ label: 'Сісти', fire: () => this.activate() }] : []

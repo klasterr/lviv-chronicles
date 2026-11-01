@@ -22,6 +22,7 @@ export class Item {
   readonly hands: number
   state: 'rest' | 'held' | 'flying' = 'rest'
   container: Tray | null = null // set while the item lies on a tray
+  id?: string // shared items only: the same thing for every player (Items.add)
   readonly vel = new THREE.Vector3()
   readonly spin = new THREE.Vector3()
   private frag: number[]

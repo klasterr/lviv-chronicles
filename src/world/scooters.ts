@@ -13,7 +13,8 @@ const SEND_DIST = 8 // metres from which R sends a left scooter home
 const RETURN_SPEED = 6 // m/s while a scooter drives itself to its parking slot
 
 type State = 'parked' | 'ridden' | 'dropped' | 'returning'
-interface Scooter { x: number; z: number; a: number; home: { x: number; z: number; a: number }; state: State }
+/** by / t / w: who rides it and the last-writer-wins stamp of the shared state (src/net/sync.ts); unused when playing alone. */
+interface Scooter { x: number; z: number; a: number; home: { x: number; z: number; a: number }; state: State; by: string; t: number; w: string }
 
 /** Bolt-style kick scooter, nose along local +z, standing on the ground at the origin. */
 function scooterGeometry() {
@@ -33,7 +34,9 @@ function scooterGeometry() {
 export class Scooters implements System {
   /** What the touch UI should offer right now. */
   act: Action[] = []
-  private items: Scooter[] = []
+  /** Called after the player changed scooter `i` (got on, off, sent it home): the network stamps and shares it. */
+  onChange: ((i: number) => void) | null = null
+  readonly items: Scooter[] = []
   private ridden: Scooter | null = null
   private mesh: THREE.InstancedMesh
   private m = new THREE.Matrix4()
@@ -48,7 +51,7 @@ export class Scooters implements System {
 
   constructor(data: CityData, parent: THREE.Object3D, private player: Player) {
     const zones = data.street ? parkingZones(data.street) : []
-    for (const z of zones) for (const s of z.slots) this.items.push({ x: s.x, z: s.z, a: s.a, home: { ...s }, state: 'parked' })
+    for (const z of zones) for (const s of z.slots) this.items.push({ x: s.x, z: s.z, a: s.a, home: { ...s }, state: 'parked', by: '', t: 0, w: '' })
 
     // painted parking bays: one merged mesh for both
     const tex = new THREE.CanvasTexture(Object.assign(document.createElement('canvas'), { width: 128, height: 512 }))
@@ -95,18 +98,43 @@ export class Scooters implements System {
     if (!s || this.player.flying) return
     s.state = 'ridden'; this.ridden = s
     this.player.mount(s.x, s.z, s.a)
+    this.onChange?.(this.items.indexOf(s))
   }
 
   private dismount() {
     const pose = this.player.dismount()
     if (!pose || !this.ridden) return
     Object.assign(this.ridden, pose, { state: 'dropped' as State }) // it stays exactly where you left it
-    this.pose(this.items.indexOf(this.ridden)); this.ridden = null
+    const i = this.items.indexOf(this.ridden)
+    this.pose(i); this.ridden = null
+    this.onChange?.(i)
   }
 
   private send() {
     const s = this.nearest(['dropped'], SEND_DIST)
-    if (s) s.state = 'returning'
+    if (s) { s.state = 'returning'; this.onChange?.(this.items.indexOf(s)) }
+  }
+
+  /** Index of the scooter the player rides, -1 if none. */
+  get riddenIndex() { return this.ridden ? this.items.indexOf(this.ridden) : -1 }
+
+  /**
+   * Take over shared state for scooter `i` (another player's change). Someone else got on the scooter we ride: we step off and leave it to them.
+   * Returns false when it refuses: a park / send-home that raced with our ride; the caller then re-claims the ride so every player agrees.
+   */
+  apply(i: number, rec: Pick<Scooter, 'state' | 'x' | 'z' | 'a' | 'by' | 't' | 'w'>) {
+    const s = this.items[i]
+    if (s === this.ridden && rec.state !== 'ridden') return false
+    if (s === this.ridden) { this.player.dismount(); this.ridden = null }
+    Object.assign(s, rec); this.pose(i)
+    return true
+  }
+
+  /** Another player rides scooter `i`: it goes where they go. */
+  follow(i: number, x: number, z: number, a: number) {
+    const s = this.items[i]
+    if (s.state !== 'ridden' || s === this.ridden) return
+    s.x = x; s.z = z; s.a = a; this.pose(i)
   }
 
   update(dt: number) {

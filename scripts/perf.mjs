@@ -60,7 +60,8 @@ const run = async (query) => {
   return { ...report, errors }
 }
 let shadow, noshadow
-try { shadow = await run(''); noshadow = await run('?noshadow') } finally { await browser.close(); await server?.close() }
+// ?solo: no multiplayer, the budgets must not depend on the network
+try { shadow = await run('?solo'); noshadow = await run('?noshadow&solo') } finally { await browser.close(); await server?.close() }
 
 const r = shadow
 const m = {

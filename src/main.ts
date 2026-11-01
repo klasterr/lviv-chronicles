@@ -78,6 +78,22 @@ const startTouch = () => {
   overlay.style.display = 'none'; player.touchActive = true
   try { Promise.resolve(document.documentElement.requestFullscreen?.({ navigationUI: 'hide' })).then(() => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape')).catch(() => {}) } catch { /* iOS has no fullscreen API */ }
 }
+// your name above your head for the other players; editable on the start / pause screen
+const nick = Object.assign(document.createElement('input'), { maxLength: 16, placeholder: 'Ваше ім’я для інших гравців', value: localStorage.getItem('name') ?? '' })
+nick.style.cssText = 'display:block;margin:14px auto 0;padding:6px 10px;width:240px;border-radius:6px;border:0;font:16px system-ui,sans-serif;text-align:center'
+nick.onclick = (e) => e.stopPropagation() // not the click that starts the game
+nick.onkeydown = nick.onkeyup = (e) => { e.stopPropagation(); if (e.key === 'Enter') nick.blur() } // typing must not walk the player
+nick.onchange = () => { localStorage.setItem('name', nick.value.trim()); net?.rename(nick.value.trim() || 'Гість') }
+// multiplayer (net/): loaded after start-up so it never delays the city; ?solo = alone, ?room=xyz = a private room
+let net: import('./net/net').Net | undefined
+if (!/[?&]solo/.test(location.search)) {
+  msg.append(nick)
+  import('./net/net').then(({ Net }) => {
+    const room = new URLSearchParams(location.search).get('room')?.slice(0, 40) || 'main'
+    net = new Net({ scene: game.scene, camera: game.camera, shadows, player, sitting, scooters, items }, nick.value.trim() || 'Гість', room)
+    game.systems.push(net)
+  }).catch((e) => console.warn('multiplayer is off:', e)) // e.g. no WebRTC in this browser
+}
 overlay.onclick = () => { sfx.unlock(); isTouch ? startTouch() : player.controls.lock() } // the click is the user gesture that lets audio start
 player.controls.addEventListener('lock', () => { overlay.style.display = 'none'; sfx.unlock() })
 player.controls.addEventListener('unlock', () => { if (!grandpas.chessOpen && !restaurant?.menuOpen && !shops.menuOpen) overlay.style.display = 'grid' }) // the chess board releases the pointer on purpose
@@ -89,7 +105,7 @@ game.start(() => {
   if (++frames < 30) return
   const now = performance.now()
   const i = game.renderer.info.render
-  hud.textContent = `${Math.round(frames * 1000 / (now - t0))} fps · ${game.pixelRatio}x · ${i.calls} draws · ${(i.triangles / 1000).toFixed(0)}k tris`
+  hud.textContent = `${Math.round(frames * 1000 / (now - t0))} fps · ${game.pixelRatio}x · ${i.calls} draws · ${(i.triangles / 1000).toFixed(0)}k tris` + (net ? ` · онлайн: ${net.online + 1}` : '')
   frames = 0; t0 = now
 })
 ;(window as any).game = game // debugging

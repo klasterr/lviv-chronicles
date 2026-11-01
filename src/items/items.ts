@@ -27,6 +27,9 @@ export class Items implements System {
   /** What the crosshair is on right now (also read by Restaurant: E at the counter takes an item before it opens the menu). */
   aim: { item: Item; tray: Tray | null } | null = null
   onPickup: Hook = null; onThrow: Hook = null; onBreak: Hook = null
+  /** Ids of shared items (shop shelves, opera leaflets) that someone has taken: such an item is gone for every player (src/net). */
+  readonly gone = new Set<string>()
+  private byId = new Map<string, Item>()
   private rest = new Set<Item>()
   private hands: Item[] = []
   private flying: { item: Item; age: number }[] = []
@@ -52,14 +55,31 @@ export class Items implements System {
   private el(css: string) { const e = document.createElement('div'); e.style.cssText = css; document.body.append(e); return e }
   private can() { return this.player.active && !this.player.riding }
 
-  /** Put an item at rest in the world, its base at (x, y, z). */
-  add(item: Item, x: number, y: number, z: number) {
+  /** Put an item at rest in the world, its base at (x, y, z). `id`: the item exists for every player (taken by one = gone for all). */
+  add(item: Item, x: number, y: number, z: number, id?: string) {
+    if (id) { if (this.gone.has(id)) return; item.id = id; this.byId.set(id, item) }
     item.mesh.position.set(x, y, z); item.state = 'rest'
     this.scene.add(item.mesh); item.mesh.updateMatrixWorld(true); this.rest.add(item)
   }
 
   /** Remove a resting item (and what lies on it) without any effect, e.g. an order that was replaced. */
   remove(item: Item) { this.rest.delete(item); item.mesh.removeFromParent() }
+
+  /** Another player took the shared item `id`. */
+  removeId(id: string) {
+    this.gone.add(id)
+    const it = this.byId.get(id)
+    if (it?.state === 'rest') { this.remove(it); if (this.aim?.item === it) this.aim = null }
+  }
+
+  /** What the player carries, last taken last. */
+  get held(): readonly Item[] { return this.hands }
+
+  /** Another player's throw: it flies and breaks here too. */
+  throwRemote(it: Item, vx: number, vy: number, vz: number) {
+    it.state = 'flying'; it.vel.set(vx, vy, vz); it.spin.set(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5)
+    this.scene.add(it.mesh); this.flying.push({ item: it, age: 0 })
+  }
 
   private used() { return this.hands.reduce((s, h) => s + h.hands, 0) }
 
@@ -72,6 +92,7 @@ export class Items implements System {
   private take(it: Item) {
     if (this.used() + it.hands > HANDS) return
     if (it.container) { it.container.release(it) } else this.rest.delete(it)
+    if (it.id) this.gone.add(it.id)
     it.state = 'held'; it.setMaterial(heldMat, 10)
     this.hands.push(it); this.aim = null
     this.onPickup?.(it, this.player.position)

@@ -8,13 +8,14 @@
     "photos": "tsx scripts/prepare-photos.ts",
     "textures": "tsx scripts/fetch-textures.ts && node scripts/optimize-textures.mjs",
     "perf": "vite build && node scripts/perf.mjs",
-    "test": "tsx scripts/test-collide.ts && tsx scripts/test-chess.ts",
+    "test": "tsx scripts/test-collide.ts && tsx scripts/test-chess.ts && tsx scripts/test-net.ts",
     "dev": "vite",
     "build": "tsc --noEmit && vite build"
   },
   "dependencies": {
     "chess.js": "^1.4.0",
-    "three": "^0.187.0"
+    "three": "^0.187.0",
+    "trystero": "^0.26.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
