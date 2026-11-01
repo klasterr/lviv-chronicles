@@ -9,8 +9,14 @@ import { Grandpas } from './world/grandpas'
 import { buildCity, type CityData } from './world/city'
 import { loadMaterials } from './world/materials'
 import { addProps } from './world/props'
-import { addAvenue } from './world/avenue'
+import { addAvenue, wallFrame } from './world/avenue'
+import { FRONT35 } from './world/avenue/ground-front'
+import { Restaurant } from './restaurant/restaurant'
+import { Items } from './items/items'
+import { Musician } from './musician/musician'
 import { addSky } from './world/sky'
+import { sfx } from './audio/sfx'
+import { AudioSystem } from './audio/system'
 import { mark, perfReport } from './perf'
 
 const shadows = !location.search.includes('noshadow') && (!isTouch || /[?&]shadow\b/.test(location.search)) // phones: no shadow map unless ?shadow
@@ -38,17 +44,27 @@ game.scene.add(ground)
 const sky = addSky(game.scene, game.camera, shadows)
 const player = new Player(game.camera, game.renderer.domElement, game.colliders, city.bounds, data.spawn)
 const grandpas = new Grandpas(data, game.scene, city.colliders, player)
+const musician = new Musician(data, game.scene, city.colliders, player) // street guitarist by the Shevchenko monument
 const sitting = new Sitting(player, game.camera, city.colliders), scooters = new Scooters(data, game.scene, player)
-game.systems.push(player, sitting, scooters, grandpas, sky.system, props, avenue)
+const items = new Items(game.scene, game.camera, player, city.colliders) // things you can pick up, carry and throw
+// McDonald's at проспект Свободи 35: its painted door leads into a separate interior room (restaurant/)
+const f35 = data.street?.fronts?.['way/171080874']
+const restaurant = f35 && (() => {
+  const fr = wallFrame(f35), d = fr.at((FRONT35.mcd.door[0] + FRONT35.mcd.door[1]) / 2, 0, 0)
+  return new Restaurant(game.scene, city.colliders, player, game.camera, city.bounds, { x: d.x, z: d.z, nx: f35.n[0], nz: f35.n[1] }, shadows, items)
+})()
+game.systems.push(player, items, sitting, scooters, grandpas, musician, sky.system, props, avenue)
+if (restaurant) game.systems.push(restaurant)
+if (sfx.enabled) game.systems.push(new AudioSystem({ player, camera: game.camera, items, musician, restaurant: restaurant || undefined, fountain: data.street?.fountain, overlay })) // procedural sound (audio/); starts on the first click
 // phone: on-screen controls; the buttons are the systems' current actions (sit, scooter, chess); the menu button pauses
-if (isTouch) game.systems.push(new TouchControls(player, () => [...sitting.act, ...scooters.act, ...grandpas.act], () => { player.touchActive = false; overlay.style.display = 'grid'; pausedAt = performance.now() }))
+if (isTouch) game.systems.push(new TouchControls(player, () => [...sitting.act, ...scooters.act, ...grandpas.act, ...musician.act, ...items.act, ...(restaurant?.act ?? [])], () => { player.touchActive = false; overlay.style.display = 'grid'; pausedAt = performance.now() }))
 // compile shaders and upload textures behind the loading screen instead of stalling the first seconds of play
 await game.renderer.compileAsync(game.scene, game.camera)
 game.frame(0)
 mark('warmed')
 
-const TOUCH_MSG = 'Торкніться, щоб почати<br><small>Лівий палець — рух (до краю — біг), правий — огляд<br>Праворуч: стрибок, ✈ політ і кнопки дій (лавка, самокат Bolt, шахи)<br>☰ — пауза</small><br><br><small style="opacity:.7">Фото фасадів: Wikimedia Commons, CC BY-SA 4.0 · дані © OpenStreetMap contributors</small>'
-msg.innerHTML = isTouch ? TOUCH_MSG : 'Натисніть, щоб почати<br><small>WASD — рух, Shift — біг, Space — стрибок<br>F (або двічі Space) — політ: Space вгору, C вниз<br>Клік по лавці — сісти<br>Самокати Bolt (парковки біля фонтану й пам’ятника Шевченку): E — сісти / злізти, R — відправити на парковку<br>Шахи: сядьте на лавку навпроти дідуся (клік), G — зіграти<br>Esc — пауза</small><br><br><small style="opacity:.7">Фото фасадів: Wikimedia Commons, CC BY-SA 4.0 (автори — у /photos/CREDITS.txt) · дані © OpenStreetMap contributors</small>'
+const TOUCH_MSG = 'Торкніться, щоб почати<br><small>Лівий палець — рух (до краю — біг), правий — огляд<br>Праворуч: стрибок, ✈ політ і кнопки дій (лавка, самокат Bolt, шахи, замовлення в McDonald’s)<br>☰ — пауза<br>Є звук: кроки, самокати, McDonald’s, гітарист (на iPhone вимкніть беззвучний режим)</small><br><br><small style="opacity:.7">Фото фасадів: Wikimedia Commons, CC BY-SA 4.0 · дані © OpenStreetMap contributors</small>'
+msg.innerHTML = isTouch ? TOUCH_MSG : 'Натисніть, щоб почати<br><small>WASD — рух, Shift — біг, Space — стрибок<br>F (або двічі Space) — політ: Space вгору, C вниз<br>Клік по лавці — сісти<br>Самокати Bolt (парковки біля фонтану й пам’ятника Шевченку): E — сісти / злізти, R — відправити на парковку<br>Шахи: сядьте на лавку навпроти дідуся (клік), G — зіграти<br>McDonald’s: зайдіть у двері (проспект Свободи 35), E біля каси чи кіосків — замовлення<br>Музикант біля пам’ятника Шевченку: E біля кейса — чайові<br>M — звук увімк./вимк. (кроки, самокати, McDonald’s, гітарист)<br>Esc — пауза</small><br><br><small style="opacity:.7">Фото фасадів: Wikimedia Commons, CC BY-SA 4.0 (автори — у /photos/CREDITS.txt) · дані © OpenStreetMap contributors</small>'
 // no pointer lock on a phone: tapping the start screen turns the touch controls on (and goes fullscreen / landscape where the browser allows it)
 let pausedAt = 0
 const startTouch = () => {
@@ -56,9 +72,9 @@ const startTouch = () => {
   overlay.style.display = 'none'; player.touchActive = true
   try { Promise.resolve(document.documentElement.requestFullscreen?.({ navigationUI: 'hide' })).then(() => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape')).catch(() => {}) } catch { /* iOS has no fullscreen API */ }
 }
-overlay.onclick = () => (isTouch ? startTouch() : player.controls.lock())
-player.controls.addEventListener('lock', () => (overlay.style.display = 'none'))
-player.controls.addEventListener('unlock', () => { if (!grandpas.chessOpen) overlay.style.display = 'grid' }) // the chess board releases the pointer on purpose
+overlay.onclick = () => { sfx.unlock(); isTouch ? startTouch() : player.controls.lock() } // the click is the user gesture that lets audio start
+player.controls.addEventListener('lock', () => { overlay.style.display = 'none'; sfx.unlock() })
+player.controls.addEventListener('unlock', () => { if (!grandpas.chessOpen && !restaurant?.menuOpen) overlay.style.display = 'grid' }) // the chess board releases the pointer on purpose
 
 const hud = document.getElementById('hud')!
 let frames = 0, t0 = performance.now()
@@ -71,4 +87,5 @@ game.start(() => {
   frames = 0; t0 = now
 })
 ;(window as any).game = game // debugging
+;(window as any).sfx = sfx
 ;(window as any).perfReport = () => perfReport(game) // npm run perf

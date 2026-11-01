@@ -71,6 +71,7 @@ export class Player implements System {
   get riding() { return this.ride !== null }
   get speedMs() { return this.ride?.speed ?? 0 }
   get heading() { return this.ride?.a ?? 0 }
+  get vspeed() { return this.vy } // 0 while standing on the ground (jump / landing sounds)
   get position() { return this.camera.position }
 
   /** Get on a scooter standing at (x, z) with heading a. */
@@ -91,6 +92,13 @@ export class Player implements System {
     return pose
   }
 
+  /** Jump to (x, z) at street level of that spot, facing camera yaw `yaw` (doors of the restaurant). */
+  teleport(x: number, z: number, yaw: number) {
+    this.camera.position.x = x; this.camera.position.z = z
+    this.y = this.colliders.groundAt(x, z, 0); this.vy = 0; this.vel.set(0, 0, 0); this.flying = false
+    this.camera.rotation.set(0, yaw, 0, 'YXZ')
+  }
+
   /** Glide onto a seat; `yaw` is the camera yaw to face (eased in, then the mouse is free again). */
   sit(x: number, z: number, yaw: number, standX: number, standZ: number) {
     this.seat = { x, z, yaw, standX, standZ, t: 0 }; this.wantStand = false
@@ -101,7 +109,7 @@ export class Player implements System {
   stand() {
     if (!this.seat) return
     this.camera.position.x = this.seat.standX; this.camera.position.z = this.seat.standZ
-    this.y = this.colliders.groundAt(this.seat.standX, this.seat.standZ); this.vy = 0
+    this.y = this.colliders.groundAt(this.seat.standX, this.seat.standZ, this.y + 0.6); this.vy = 0
     this.seat = null; this.jumpQueued = false; this.lastSpace = 0
   }
 
@@ -178,7 +186,7 @@ export class Player implements System {
     p.x = THREE.MathUtils.clamp(p.x, this.bounds.minX, this.bounds.maxX)
     p.z = THREE.MathUtils.clamp(p.z, this.bounds.minZ, this.bounds.maxZ)
 
-    const ground = this.colliders.groundAt(p.x, p.z)
+    const ground = this.colliders.groundAt(p.x, p.z, this.y + 0.6)
     if (this.y <= ground) {
       this.y = ground
       if (this.vy < 0) this.vy = 0

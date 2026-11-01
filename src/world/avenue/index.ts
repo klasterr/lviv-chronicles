@@ -30,7 +30,7 @@ function blob(r: number, x: number, y: number, z: number) {
 }
 
 /** Frame on a street-facing wall: u metres from its left end, h metres up, d metres out of the wall. x = along the wall to the right, z = outward. */
-const wallFrame = (f: Front) => {
+export const wallFrame = (f: Front) => {
   const tx = (f.b[0] - f.a[0]) / f.len, tz = (f.b[1] - f.a[1]) / f.len
   return { tx, tz, at: (u: number, h: number, d: number) => new THREE.Vector3(f.a[0] + tx * u + f.n[0] * (f.off + d), h, f.a[1] + tz * u + f.n[1] * (f.off + d)) }
 }

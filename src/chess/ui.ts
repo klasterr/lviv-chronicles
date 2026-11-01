@@ -1,6 +1,7 @@
 import { Chess, type Square } from 'chess.js'
 import type { Level, Pick } from './engine'
 import { isTouch } from '../device'
+import { sfx } from '../audio/sfx'
 
 export interface Opponent { key: string; name: string; level: Level; quips: { move: string[]; check: string[]; win: string[]; lose: string[] } }
 
@@ -117,7 +118,7 @@ export class ChessUI {
     const mv = g.moves({ square: this.sel, verbose: true }).find((m) => m.to === sq)
     if (!mv) { this.sel = null; this.render(); return }
     g.move({ from: mv.from, to: mv.to, promotion: 'q' }) // shortcut: pawns always promote to a queen
-    this.last = [mv.from, mv.to]; this.sel = null
+    this.last = [mv.from, mv.to]; this.sel = null; sfx.play('chess')
     this.render()
     if (!g.isGameOver()) void this.reply()
   }
@@ -140,7 +141,7 @@ export class ChessUI {
     await new Promise((r) => setTimeout(r, Math.max(0, MIN_THINK_MS - (performance.now() - t0))))
     if (this.opp.key !== key || this.games.get(key) !== g || g.turn() !== 'b' || this.epoch !== epoch) { this.busy = false; return } // a new game started meanwhile
     this.busy = false
-    if (mv) { g.move(mv); this.last = [mv.from, mv.to] }
+    if (mv) { g.move(mv); this.last = [mv.from, mv.to]; sfx.play('chess') }
     if (this.isOpen) {
       this.render()
       if (!g.isGameOver()) this.say(g.inCheck() ? `Шах! ${rnd(this.opp.quips.check)}` : rnd(this.opp.quips.move))
