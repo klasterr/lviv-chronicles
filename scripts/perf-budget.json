@@ -1,0 +1,22 @@
+{
+  "draws.spawn": 50,
+  "draws.avenue": 80,
+  "draws.townhall": 55,
+  "draws.aerial": 60,
+  "draws.plaza": 55,
+  "draws.shadowFrame.worst": 110,
+  "draws.noshadow.worst": 80,
+  "tris.worst": 160000,
+  "tris.shadowFrame.worst": 290000,
+  "tris.noshadow.worst": 150000,
+  "programs": 24,
+  "textures": 28,
+  "texMB": 75,
+  "geometryMB": 3.5,
+  "meshes": 90,
+  "sceneBuildMs": 400,
+  "jsHeapMB": 45,
+  "size.jsGzipKB": 180,
+  "size.texKB": 1400,
+  "size.cityJsonGzipKB": 90
+}
