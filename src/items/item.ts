@@ -27,7 +27,7 @@ export class Item {
   private frag: number[]
 
   constructor(readonly name: string, geo: THREE.BufferGeometry, o: ItemOpts = {}) {
-    this.mesh = new THREE.Mesh(geo, worldMat)
+    this.mesh = new THREE.Mesh(geo, worldMat); this.mesh.userData.keep = true // items are carried through doors: interiors/portal.ts must not hide them
     this.radius = o.radius ?? 0.1; this.cy = o.cy ?? this.radius; this.hands = o.hands ?? 1; this.frag = o.fragments ?? [0xdddddd]
   }
 

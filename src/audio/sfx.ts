@@ -127,6 +127,7 @@ const R = {
   chess: (s, o, t) => { s.tone(o, t, 'sine', 520, 230, 0.045, 0.5); s.hiss(o, t, 'bandpass', 1800, 1800, 2, 0.02, 0.35); s.tone(o, t, 'sine', 160, 110, 0.09, 0.4) },
   chime: (s, o, t) => { s.bell(o, t, 1318, 0.2, 1.1); s.bell(o, t + 0.22, 987, 0.2, 1.4) },
   ding: (s, o, t) => s.bell(o, t, 2637, 0.25, 0.9),
+  tune: (s, o, t) => { for (const f of [220, 440, 441.6, 659, 880]) s.tone(o, t + rnd(0, 0.3), 'triangle', f, f, 2.8, 0.05, 0.9) }, // the orchestra tuning to A, a faint swell (opera hall)
   tick: (s, o, t) => { s.tone(o, t, 'triangle', 1500, 1100, 0.03, 0.18); s.hiss(o, t, 'highpass', 5000, 5000, 0.7, 0.015, 0.1) },
   untick: (s, o, t) => s.tone(o, t, 'triangle', 1100, 800, 0.035, 0.18),
   confirm: (s, o, t) => { s.tone(o, t, 'sine', 880, 880, 0.09, 0.2); s.tone(o, t + 0.08, 'sine', 1320, 1320, 0.14, 0.2) },

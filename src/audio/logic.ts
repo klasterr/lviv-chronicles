@@ -15,7 +15,7 @@ export function panFor(dx: number, dz: number, yaw: number) {
 
 /** Metres between footsteps: longer stride when running (4 m/s walk, 8 m/s run). */
 export const stride = (speed: number) => 1.6 + 0.25 * Math.min(4, Math.max(0, speed - 4))
-export const stepVol = (speed: number) => 0.6 + 0.4 * clamp01((speed - 2) / 6)
+export const stepVol = (speed: number) => 0.9 * (0.6 + 0.4 * clamp01((speed - 2) / 6)) // 0.9: footsteps were turned down 10 %
 export const MOVING = 0.8 // m/s below which nobody makes steps
 
 /** Which sound family an item belongs to (duck-typed so this module stays free of three.js): trays hold things, drinks and desserts are cups. */

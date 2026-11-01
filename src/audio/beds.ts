@@ -46,7 +46,7 @@ export class Beds {
     const v = this.v, t = this.t
     v.city = smooth(v.city, 0.05 * (1 - t.inside), dt, 3); this.city.gain.value = v.city
     v.room = smooth(v.room, 0.07 * t.inside, dt, 3); this.room.gain.value = v.room
-    v.fountain = smooth(v.fountain, t.fountain, dt, 6); this.fount.gain.value = v.fountain * 0.15
+    v.fountain = smooth(v.fountain, t.fountain, dt, 6); this.fount.gain.value = v.fountain * 0.135
     if (this.fountPan) this.fountPan.pan.value = t.fountainPan
     v.scooter = smooth(v.scooter, t.scooter, dt, 8); v.speed = smooth(v.speed, t.speed, dt, 6)
     const k = Math.min(1, v.speed / 11.1)

@@ -7,7 +7,11 @@ import { CulledInstances, SHADOW_KEEP } from '../instancing'
 import { FACADE_ATLAS, FACADE_PANELS } from './facades.generated'
 import { drawFront35, FRONT35 } from './ground-front'
 import { buildSigns } from './signs'
-import type { AvenueData, Front } from './types'
+import type { AvenueData } from './types'
+import { quad, wallFrame } from './frame'
+import { addShopFronts } from '../../shops/facades'
+
+export { wallFrame }
 
 // vertex-coloured primitives (same idea as props.ts, kept local so the avenue layer is self-contained)
 function part(geo: THREE.BufferGeometry, color: number, m = new THREE.Matrix4()) {
@@ -27,19 +31,6 @@ function blob(r: number, x: number, y: number, z: number) {
   const g = mergeVertices(raw), p = g.attributes.position
   for (let i = 0; i < p.count; i++) { const j = 1 + 0.16 * Math.sin(p.getX(i) * 3.1 + p.getY(i) * 2.3) * Math.cos(p.getZ(i) * 2.7 + p.getX(i)); p.setXYZ(i, p.getX(i) * j + x, p.getY(i) * j + y, p.getZ(i) * j + z) }
   g.computeVertexNormals(); return g
-}
-
-/** Frame on a street-facing wall: u metres from its left end, h metres up, d metres out of the wall. x = along the wall to the right, z = outward. */
-export const wallFrame = (f: Front) => {
-  const tx = (f.b[0] - f.a[0]) / f.len, tz = (f.b[1] - f.a[1]) / f.len
-  return { tx, tz, at: (u: number, h: number, d: number) => new THREE.Vector3(f.a[0] + tx * u + f.n[0] * (f.off + d), h, f.a[1] + tz * u + f.n[1] * (f.off + d)) }
-}
-const quad = (f: Front, u0: number, u1: number, h0: number, h1: number, d: number, uv: [number, number, number, number]) => {
-  const fr = wallFrame(f), p = [fr.at(u0, h0, d), fr.at(u1, h0, d), fr.at(u1, h1, d), fr.at(u0, h1, d)]
-  const g = new THREE.BufferGeometry()
-  g.setAttribute('position', new THREE.Float32BufferAttribute(p.flatMap((v) => [v.x, v.y, v.z]), 3))
-  g.setAttribute('uv', new THREE.Float32BufferAttribute([uv[0], uv[1], uv[2], uv[1], uv[2], uv[3], uv[0], uv[3]], 2))
-  g.setIndex([0, 1, 2, 0, 2, 3]); g.computeVertexNormals(); return g
 }
 
 /**
@@ -85,7 +76,8 @@ export function addAvenue(data: CityData, parent: THREE.Object3D, colliders: Col
   }
 
   // ---- shop signs (OSM names)
-  const signs = buildSigns(st as AvenueData); if (signs) group.add(signs)
+  const shopFronts = addShopFronts(st, group, shadows) // hand-drawn fronts of the enterable shops (shops/); signs mapped on them would float on top
+  const signs = buildSigns(st as AvenueData, shopFronts.covers); if (signs) group.add(signs)
 
   // ---- mapped street furniture
   const benchGeo = mergeGeometries([box(1.8, 0.06, 0.45, 0x6a4a2a, 0, 0.46, 0), box(1.8, 0.4, 0.05, 0x6a4a2a, 0, 0.74, -0.2), box(0.07, 0.46, 0.45, 0x1d1f22, -0.8, 0.23, 0), box(0.07, 0.46, 0.45, 0x1d1f22, 0.8, 0.23, 0), box(0.07, 0.6, 0.06, 0x1d1f22, -0.8, 0.7, -0.2), box(0.07, 0.6, 0.06, 0x1d1f22, 0.8, 0.7, -0.2)])!

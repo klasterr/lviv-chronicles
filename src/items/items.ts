@@ -40,7 +40,7 @@ export class Items implements System {
 
   constructor(private scene: THREE.Object3D, private camera: THREE.Camera, private player: Player, private colliders: Colliders) {
     this.chips = new THREE.InstancedMesh(new THREE.BoxGeometry(0.035, 0.035, 0.035), new THREE.MeshStandardMaterial({ roughness: 0.8 }), FRAGMENTS)
-    this.chips.frustumCulled = false; this.chips.count = 0
+    this.chips.frustumCulled = false; this.chips.count = 0; this.chips.userData.keep = true
     this.chips.setColorAt(0, new THREE.Color()) // allocates the colour buffer
     scene.add(this.chips)
     addEventListener('keydown', (e) => {

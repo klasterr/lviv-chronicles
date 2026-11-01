@@ -12,6 +12,8 @@ import { addProps } from './world/props'
 import { addAvenue, wallFrame } from './world/avenue'
 import { FRONT35 } from './world/avenue/ground-front'
 import { Restaurant } from './restaurant/restaurant'
+import { Shops } from './shops/shops'
+import { Opera } from './opera/opera'
 import { Items } from './items/items'
 import { Musician } from './musician/musician'
 import { addSky } from './world/sky'
@@ -55,9 +57,13 @@ const restaurant = f35 && (() => {
 })()
 game.systems.push(player, items, sitting, scooters, grandpas, musician, sky.system, props, avenue)
 if (restaurant) game.systems.push(restaurant)
+const shops = new Shops(game.scene, city.colliders, player, game.camera, city.bounds, data.street?.fronts, shadows, items) // the bookshop, coffee shop, pharmacy and Viennese cafe you can walk into (shops/)
+game.systems.push(shops)
+const opera = Opera.make(game.scene, city.colliders, player, game.camera, city.bounds, data, shadows, items) // the Opera and Ballet Theatre: its main entrance leads into the hall (opera/)
+if (opera) game.systems.push(opera)
 if (sfx.enabled) game.systems.push(new AudioSystem({ player, camera: game.camera, items, musician, restaurant: restaurant || undefined, fountain: data.street?.fountain, overlay })) // procedural sound (audio/); starts on the first click
 // phone: on-screen controls; the buttons are the systems' current actions (sit, scooter, chess); the menu button pauses
-if (isTouch) game.systems.push(new TouchControls(player, () => [...sitting.act, ...scooters.act, ...grandpas.act, ...musician.act, ...items.act, ...(restaurant?.act ?? [])], () => { player.touchActive = false; overlay.style.display = 'grid'; pausedAt = performance.now() }))
+if (isTouch) game.systems.push(new TouchControls(player, () => [...sitting.act, ...scooters.act, ...grandpas.act, ...musician.act, ...items.act, ...(restaurant?.act ?? []), ...shops.act, ...(opera?.act ?? [])], () => { player.touchActive = false; overlay.style.display = 'grid'; pausedAt = performance.now() }))
 // compile shaders and upload textures behind the loading screen instead of stalling the first seconds of play
 await game.renderer.compileAsync(game.scene, game.camera)
 game.frame(0)
@@ -74,7 +80,7 @@ const startTouch = () => {
 }
 overlay.onclick = () => { sfx.unlock(); isTouch ? startTouch() : player.controls.lock() } // the click is the user gesture that lets audio start
 player.controls.addEventListener('lock', () => { overlay.style.display = 'none'; sfx.unlock() })
-player.controls.addEventListener('unlock', () => { if (!grandpas.chessOpen && !restaurant?.menuOpen) overlay.style.display = 'grid' }) // the chess board releases the pointer on purpose
+player.controls.addEventListener('unlock', () => { if (!grandpas.chessOpen && !restaurant?.menuOpen && !shops.menuOpen) overlay.style.display = 'grid' }) // the chess board releases the pointer on purpose
 
 const hud = document.getElementById('hud')!
 let frames = 0, t0 = performance.now()

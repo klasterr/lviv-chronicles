@@ -99,16 +99,22 @@ function ratushaTower(ring: Pt[], ctx: Ctx) {
 
 // ---- Оперний театр: the real facade photo (CC BY-SA, see public/photos/CREDITS.txt) as an alpha-cut panel on the front,
 // plus the broad dark-green copper dome seen behind the pediment in aerial photos.
-function opera(ring: Pt[], ctx: Ctx, H: number) {
+const OPERA_PH = 48, OPERA_PW = OPERA_PH * 2048 / 1565 // photo panel height / width (photo aspect)
+/** Front of the opera: the box side facing south (+z), where Svobody avenue lies; the panel hangs 0.2 m before it. `door` = the central entrance, found on the photo (arch at 41% of its width: 470 of 1024 px, ground level). */
+export function operaFront(ring: Pt[]) {
   const o = obb(ring), ux = Math.cos(o.a), uz = Math.sin(o.a), vx = -uz, vz = ux
-  // front = the box side facing south (+z), where Svobody avenue lies
   const sides = [[ux, uz, o.w / 2], [-ux, -uz, o.w / 2], [vx, vz, o.d / 2], [-vx, -vz, o.d / 2]]
   const [nx, nz, half] = sides.reduce((b, s) => (s[1] > b[1] ? s : b))
+  const px = o.cx + nx * (half + 0.2), pz = o.cz + nz * (half + 0.2), u = (470 / 1024 - 0.5) * OPERA_PW // panel-local x of the door; +x = to the right of a viewer facing the facade
+  return { o, nx, nz, px, pz, door: { x: px + nz * u, z: pz - nx * u, nx, nz } }
+}
 
-  const PH = 48, PW = PH * 2048 / 1565 // panel height / width (photo aspect)
+function opera(ring: Pt[], ctx: Ctx, H: number) {
+  const { o, nx, nz, px, pz } = operaFront(ring)
+  const PH = OPERA_PH, PW = OPERA_PW
   const tex = photo('photos/opera_front.webp')
   const panel = new THREE.Mesh(new THREE.PlaneGeometry(PW, PH), photoMat(tex, { alphaTest: 0.5 }))
-  panel.position.set(o.cx + nx * (half + 0.2), PH / 2, o.cz + nz * (half + 0.2)); panel.rotation.y = Math.atan2(nx, nz)
+  panel.position.set(px, PH / 2, pz); panel.rotation.y = Math.atan2(nx, nz)
   panel.receiveShadow = ctx.shadows
   ctx.group.add(panel)
 

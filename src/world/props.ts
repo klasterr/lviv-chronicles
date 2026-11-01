@@ -4,6 +4,7 @@ import type { Colliders } from './colliders'
 import type { CityData } from './city'
 import type { Mats } from './materials'
 import type { System } from '../game'
+import { addMonument } from './monument'
 import { CulledInstances, SHADOW_KEEP, type CulledOpts } from './instancing'
 
 /** Geometry piece with a flat vertex colour (optionally shaded by height + speckle for cheap foliage lighting). */
@@ -159,30 +160,9 @@ export function addProps(data: CityData, parent: THREE.Object3D, colliders: Coll
     new THREE.MeshStandardMaterial({ color: 0xdff1ff, transparent: true, opacity: 0.5, roughness: 0.1, emissive: 0x6aa0c8, emissiveIntensity: 0.25, depthWrite: false }), spots.length)
   jets.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1.5, 0), L / 2 + 3); fg.add(jets) // local sphere: culled when out of view
 
-  // ---- Shevchenko monument: granite stylobate, bronze figure, "Wave of National Revival" stele, two sector lawns
-  const M = st.monument, mg = new THREE.Group(); mg.position.set(M.x, 0, M.z); mg.rotation.y = M.yaw; group.add(mg)
-  const bronze = new THREE.MeshStandardMaterial({ color: 0x8a6a42, metalness: 0.1, roughness: 0.55, side: THREE.DoubleSide })
+  // ---- Shevchenko monument (monument.ts) + two sector lawns
+  addMonument(st.monument, group, colliders, shadows)
   const granite = new THREE.MeshStandardMaterial({ color: 0x8d8f93, roughness: 0.35 })
-  const plinth = new THREE.Group(); mg.add(plinth)
-  plinth.add(new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.15, 4.2), granite)); plinth.children[0].position.y = 0.075
-  plinth.add(new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.45, 3.2), granite)); plinth.children[1].position.y = 0.375
-  const profile = [[0.001, 0], [0.55, 0], [0.6, 0.3], [0.52, 1], [0.45, 1.8], [0.36, 2.6], [0.34, 3], [0.5, 3.45], [0.2, 3.8], [0.001, 3.85]].map(([r, y]) => new THREE.Vector2(r, y))
-  const fig = new THREE.Mesh(new THREE.LatheGeometry(profile, 16), bronze); fig.position.y = 0.6; mg.add(fig)
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), bronze); head.position.y = 0.6 + 4.12; mg.add(head)
-  const arms = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.22, 0.25), bronze); arms.position.set(0, 0.6 + 2.9, 0.38); mg.add(arms)
-  colliders.addBox(M.x, M.z, 1.8, Infinity)
-
-  const sg = new THREE.Group(); sg.position.set(M.stele.x, 0, M.stele.z); sg.rotation.y = M.steleYaw; group.add(sg)
-  { // curved wing: radius 9 m, 14 m of arc, height rising from 8 to 12 m; concave side towards the figure (+z)
-    const R = 9, arc = 14 / R, N = 24, pos: number[] = [], idx: number[] = []
-    for (let i = 0; i <= N; i++) {
-      const u = i / N, a = (u - 0.5) * arc, x = R * Math.sin(a), z = R * (1 - Math.cos(a))
-      pos.push(x, 0, z, x, 8 + 4 * u, z); if (i) idx.push(i * 2 - 2, i * 2 - 1, i * 2, i * 2 - 1, i * 2 + 1, i * 2)
-      if (i) colliders.add(...world(M.stele.x, M.stele.z, M.steleYaw, R * Math.sin((((i - 1) / N) - 0.5) * arc), R * (1 - Math.cos((((i - 1) / N) - 0.5) * arc))) as [number, number], ...world(M.stele.x, M.stele.z, M.steleYaw, x, z) as [number, number])
-    }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals()
-    sg.add(new THREE.Mesh(g, bronze))
-  }
   for (const b of st.beds) { // sector lawn with a low granite curb (0.15 m)
     const sector = (r0: number, r1: number, span: number) => {
       const pts: THREE.Vector2[] = [], a0 = b.ang - span / 2
@@ -195,7 +175,6 @@ export function addProps(data: CityData, parent: THREE.Object3D, colliders: Coll
   }
   for (const [geos, mat, cast] of [[lawnGeos, mats.lawn, false], [graniteGeos, mats.granite, false], [curbGeos, granite, true]] as const)
     if (geos.length) put(new THREE.Mesh(mergeGeometries(geos)!, mat), cast)
-  put(mg); put(sg)
 
   let time = 0
   return {

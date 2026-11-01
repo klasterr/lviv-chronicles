@@ -1,4 +1,5 @@
 import type * as THREE from 'three'
+import { Portal } from '../interiors/portal'
 import type { System } from '../game'
 import type { Player } from '../player/player'
 import type { Items } from '../items/items'
@@ -50,7 +51,7 @@ export class AudioSystem implements System {
       if (sp3 > 90) sp = sp3 = 0
     }
     this.px = p.x; this.py = p.y; this.pz = p.z; this.seen = true
-    const inside = restaurant?.inside ?? false
+    const inside = Portal.active !== null // any interior: the restaurant, shops, the opera
 
     // footsteps: by distance walked, so the rate follows the speed
     const walking = pl.active && !pl.flying && !pl.riding && !pl.seated && pl.vspeed === 0 && sp > MOVING
@@ -70,7 +71,7 @@ export class AudioSystem implements System {
     if (pl.seated !== this.seated) sfx.play((this.seated = pl.seated) ? 'sit' : 'stand')
     if (pl.riding !== this.riding) sfx.play((this.riding = pl.riding) ? 'latch' : 'unlatch')
 
-    b.inside = inside ? 1 : 0
+    b.inside = !inside ? 0 : (Portal.active!.spec.tone ?? 'restaurant') === 'restaurant' ? 1 : 0.3 // the restaurant murmur; shops and halls only get a faint room tone
     b.scooter = pl.riding ? 1 : 0; b.speed = pl.speedMs
     b.wind = pl.flying && pl.active ? clamp01(sp3 / 45) : 0
     const f = this.d.fountain

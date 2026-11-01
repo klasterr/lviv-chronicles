@@ -9,13 +9,13 @@ const hash = (s: string) => { let h = 2166136261; for (let i = 0; i < s.length; 
 export const SIGN_H = 0.56, SIGN_Y = 3.05, PXM = 64 // sign height (m), bottom edge above the pavement (m), atlas pixels per metre
 
 /** One mesh (one draw call, one 1024x1024 atlas) with all shop fascia signs of the avenue: text from OSM `name`, size from the text length, placed on the street-facing wall. */
-export function buildSigns(d: AvenueData): THREE.Mesh | null {
+export function buildSigns(d: AvenueData, skip: (sign: number[]) => boolean = () => false): THREE.Mesh | null {
   if (!d.signs?.length) return null
   const A = 1024, cv = document.createElement('canvas'); cv.width = cv.height = A
   const g = cv.getContext('2d')!, ch = Math.round(SIGN_H * PXM)
   const pos: number[] = [], uv: number[] = [], idx: number[] = []
   let x = 0, y = 0
-  for (const [sx, sz, nx, nz, w, ti] of d.signs) {
+  for (const [sx, sz, nx, nz, w, ti] of d.signs.filter((s) => !skip(s))) {
     const text = d.signTexts[ti], cw = Math.round(w * PXM)
     if (x + cw > A) { x = 0; y += ch }
     if (y + ch > A) break // atlas full (never at the current ~100 signs)

@@ -12,6 +12,7 @@ export const AVENUE_TINTS: Record<string, number> = {
   'way/171080899': 0xc4bfa0, // 23  olive grey
   'way/149962302': 0xe3d6a6, // 24  pale yellow
   'way/200174427': 0xcdb87e, // 25  ochre
+  'way/171081064': 0xd8cbaa, // 33  cream (the D.S. pharmacy's ground floor is drawn to match)
   'way/171081069': 0xd9a98c, // 31  salmon
   'way/171081042': 0xcac2ae, // 45  hotel, beige grey
   'way/195572701': 0xd6b565, // 49  ochre

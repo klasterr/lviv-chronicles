@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { Colliders } from '../world/colliders'
 import { part, box, cyl, T } from '../world/props'
+import { buildFigure } from '../interiors/figure'
 import { MENU } from './menu'
 import { L } from './layout'
 
@@ -61,26 +62,8 @@ function floorTexture() {
   return t
 }
 
-/** Standing cashier (feet on the ground at the origin, face towards +z). The right arm is a separate mesh that swings forward when handing out an order. */
-export function buildCashier(shadows: boolean) {
-  const skin = 0xe0b08c, shirt = 0x2d2d2d, mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
-  const body = mergeGeometries([
-    box(0.12, 0.85, 0.14, 0x1c1c1c, -0.09, 0.425, 0), box(0.12, 0.85, 0.14, 0x1c1c1c, 0.09, 0.425, 0),          // legs
-    box(0.12, 0.07, 0.24, 0x111111, -0.09, 0.035, 0.04), box(0.12, 0.07, 0.24, 0x111111, 0.09, 0.035, 0.04),   // shoes
-    box(0.4, 0.6, 0.24, shirt, 0, 1.15, 0), box(0.4, 0.14, 0.25, 0xc8281e, 0, 1.38, 0),                        // torso, red yoke
-    box(0.05, 0.03, 0.01, YELLOW, 0.1, 1.3, 0.125),                                                            // name tag
-    box(0.08, 0.55, 0.08, shirt, -0.24, 1.13, 0), box(0.07, 0.07, 0.08, skin, -0.24, 0.82, 0),                 // left arm and hand
-    part(new THREE.SphereGeometry(0.115, 12, 10), skin, T(0, 1.58, 0)),                                        // head
-    cyl(0.125, 0.125, 0.07, 0xc8281e, 0, 1.67, -0.005, 12), box(0.18, 0.015, 0.1, 0xc8281e, 0, 1.655, 0.13),   // cap and visor
-    box(0.06, 0.16, 0.05, 0x4a2f1c, 0, 1.55, -0.14),                                                           // ponytail
-  ])!
-  const arm = mergeGeometries([box(0.08, 0.6, 0.08, shirt, 0, -0.3, 0), box(0.07, 0.07, 0.09, skin, 0, -0.62, 0)])!
-  const group = new THREE.Group(), armMesh = new THREE.Mesh(arm, mat)
-  armMesh.position.set(0.24, 1.43, 0)
-  group.add(new THREE.Mesh(body, mat), armMesh)
-  group.traverse((m) => { m.castShadow = shadows })
-  return { group, arm: armMesh }
-}
+/** Standing cashier (feet on the ground at the origin, face towards +z). The right arm swings forward when handing out an order. */
+export const buildCashier = (shadows: boolean) => buildFigure({ shirt: 0x2d2d2d, yoke: RED, cap: RED, tag: YELLOW, long: true }, shadows)
 
 /** The restaurant room, built at world position (ox, oz) on the ground. Every wall and piece of furniture is registered in `colliders`. */
 export function buildInterior(ox: number, oz: number, colliders: Colliders, shadows: boolean) {

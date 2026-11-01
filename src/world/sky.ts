@@ -17,6 +17,7 @@ export function addSky(scene: THREE.Scene, camera: THREE.Camera, shadows: boolea
   )
   dome.frustumCulled = false
   dome.renderOrder = -1
+  dome.userData.keep = true // stays visible inside interiors (interiors/portal.ts hides the rest of the world)
   scene.add(dome)
 
   scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x9a8f80, 2.4))
