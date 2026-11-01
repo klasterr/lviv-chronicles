@@ -2,11 +2,14 @@ import * as THREE from 'three'
 import type { System } from '../game'
 import type { Colliders } from '../world/colliders'
 import type { Player } from './player'
+import { isTouch, type Action } from '../device'
 
 const REACH = 4 // metres from which a bench can be clicked
 
-/** Click a bench to sit on it; click again or press a movement key to get up. Shows a crosshair and a hint. */
+/** Click a bench to sit on it; click again or press a movement key to get up. Shows a crosshair and a hint (touch: a button via `act`). */
 export class Sitting implements System {
+  /** What the touch UI should offer right now. */
+  act: Action[] = []
   private dir = new THREE.Vector3()
   private aim: { x: number; z: number; yaw: number; standX: number; standZ: number } | null = null
   private cross = this.el('div', 'position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#fff;box-shadow:0 0 3px #000;opacity:.7;pointer-events:none;display:none')
@@ -14,10 +17,17 @@ export class Sitting implements System {
 
   constructor(private player: Player, private camera: THREE.Camera, private colliders: Colliders) {
     addEventListener('mousedown', (e) => {
-      if (e.button !== 0 || !player.controls.isLocked || player.riding) return // the click that locks the pointer arrives while still unlocked
-      if (player.seated) player.stand()
-      else if (this.aim) { const a = this.aim; player.sit(a.x, a.z, a.yaw, a.standX, a.standZ) }
+      // the click that locks the pointer arrives while still unlocked; on a phone taps go through the touch buttons (and emulated mouse events must not sit you down)
+      if (isTouch || e.button !== 0 || !player.active || player.riding) return
+      this.activate()
     })
+  }
+
+  /** Sit on the aimed bench, or get up if already seated. */
+  private activate() {
+    const p = this.player
+    if (p.seated) p.stand()
+    else if (this.aim) { const a = this.aim; p.sit(a.x, a.z, a.yaw, a.standX, a.standZ) }
   }
 
   private el(tag: string, css: string) {
@@ -25,8 +35,8 @@ export class Sitting implements System {
   }
 
   update() {
-    const locked = this.player.controls.isLocked
-    const walking = locked && !this.player.riding
+    const active = this.player.active
+    const walking = active && !this.player.riding
     this.cross.style.display = walking && !this.player.seated ? 'block' : 'none'
     this.aim = null
     if (walking && !this.player.seated) {
@@ -40,8 +50,9 @@ export class Sitting implements System {
         this.aim = { x, z, yaw: b.yaw + Math.PI, standX, standZ } // camera forward = bench front (local +z)
       }
     }
-    const text = this.player.seated ? 'Space / WASD або клік — підвестися' : this.aim ? 'Клік — сісти' : ''
+    this.act = !walking ? [] : this.player.seated ? [{ label: 'Підвестися', fire: () => this.activate() }] : this.aim ? [{ label: 'Сісти', fire: () => this.activate() }] : []
+    const text = isTouch ? '' : this.player.seated ? 'Space / WASD або клік — підвестися' : this.aim ? 'Клік — сісти' : ''
     this.hint.textContent = text
-    this.hint.style.display = locked && text ? 'block' : 'none'
+    this.hint.style.display = active && text ? 'block' : 'none'
   }
 }

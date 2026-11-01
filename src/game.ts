@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import type { Colliders } from './world/colliders'
+import { isTouch } from './device'
 
 /** Anything that needs a per-frame tick (player, NPCs, day/night, ...). Add via game.systems.push().
  *  preRender runs after all updates, right before drawing, with up-to-date camera matrices (instance culling etc.). */
@@ -23,8 +24,8 @@ export class Game {
   private lost = false
 
   constructor(shadows: boolean) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
-    const top = Math.min(devicePixelRatio, STEPS[0])
+    this.renderer = new THREE.WebGLRenderer({ antialias: !isTouch, powerPreference: 'high-performance' })
+    const top = Math.min(devicePixelRatio, isTouch ? 1 : STEPS[0]) // phones start at 1x with antialiasing off; the governor may climb back
     this.level = Math.max(0, STEPS.findIndex((s) => s <= top)); this.pixelRatio = STEPS[this.level]
     this.renderer.setPixelRatio(this.pixelRatio)
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping

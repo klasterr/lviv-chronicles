@@ -12,6 +12,8 @@ interface Seat { x: number; z: number; yaw: number; standX: number; standZ: numb
 export class Player implements System {
   controls: PointerLockControls
   flying = false
+  touchActive = false // phone: set while the touch controls are in use (the start screen / menu / chess board switch it off)
+  climb = 0 // touch up/down buttons while flying: -1..1
   private keys = new Set<string>()
   private vel = new THREE.Vector3()
   private fwd = new THREE.Vector3()
@@ -34,22 +36,36 @@ export class Player implements System {
     this.y = colliders.groundAt(spawn.x, spawn.z)
     camera.position.set(spawn.x, this.y + EYE, spawn.z)
     camera.rotation.set(0, spawn.yaw, 0, 'YXZ')
-    addEventListener('keydown', (e) => {
-      if (e.repeat) return
-      this.keys.add(e.code)
-      if (this.seat) { if (MOVE_KEYS.includes(e.code)) this.wantStand = true; return } // seated: movement keys only stand you up
-      if (this.ride) return // riding: Space / F do nothing
-      if (e.code === 'KeyF') this.flying = !this.flying
-      if (e.code === 'Space') {
-        const now = performance.now()
-        if (now - this.lastSpace < 300) this.flying = !this.flying // double-tap Space also toggles flight
-        this.lastSpace = now
-        this.jumpQueued = true
-      }
-    })
-    addEventListener('keyup', (e) => this.keys.delete(e.code))
+    addEventListener('keydown', (e) => { if (!e.repeat) this.keyDown(e.code) })
+    addEventListener('keyup', (e) => this.keyUp(e.code))
     addEventListener('blur', () => this.keys.clear())
   }
+
+  /** Key presses come from the keyboard or from the touch controls. */
+  keyDown(code: string) {
+    this.keys.add(code)
+    if (this.seat) { if (MOVE_KEYS.includes(code)) this.wantStand = true; return } // seated: movement keys only stand you up
+    if (this.ride) return // riding: Space / F do nothing
+    if (code === 'KeyF') this.flying = !this.flying
+    if (code === 'Space') {
+      const now = performance.now()
+      if (now - this.lastSpace < 300) this.flying = !this.flying // double-tap Space also toggles flight
+      this.lastSpace = now
+      this.jumpQueued = true
+    }
+  }
+
+  keyUp(code: string) { this.keys.delete(code) }
+
+  /** Touch look: radians; finger right = turn right, finger up = look up. */
+  look(dYaw: number, dPitch: number) {
+    const r = this.camera.rotation
+    r.y -= dYaw
+    r.x = THREE.MathUtils.clamp(r.x - dPitch, -1.5, 1.5)
+  }
+
+  /** True while the player is in control: pointer locked (desktop) or the touch controls are on (phone). */
+  get active() { return this.controls.isLocked || this.touchActive }
 
   get seated() { return this.seat !== null }
   get riding() { return this.ride !== null }
@@ -90,7 +106,7 @@ export class Player implements System {
   }
 
   update(dt: number) {
-    if (!this.controls.isLocked) { this.vel.set(0, 0, 0); this.jumpQueued = false; return }
+    if (!this.active) { this.vel.set(0, 0, 0); this.jumpQueued = false; return }
     const p = this.camera.position
 
     if (this.seat) {
@@ -152,7 +168,7 @@ export class Player implements System {
 
     p.x += this.vel.x * dt; p.z += this.vel.z * dt
     if (this.flying) {
-      this.vy += (target.y + (+k.has('Space') - +k.has('KeyC')) * speed - this.vy) * k1
+      this.vy += (target.y + THREE.MathUtils.clamp(+k.has('Space') - +k.has('KeyC') + this.climb, -1, 1) * speed - this.vy) * k1
       this.y += this.vy * dt
     } else {
       this.vy -= GRAVITY * dt

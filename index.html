@@ -2,13 +2,16 @@
 <html lang="uk">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <link rel="preload" href="/city.json" as="fetch" crossorigin>
 <title>Львів — прогулянка</title>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font: 16px system-ui, sans-serif; color: #fff }
-  canvas { display: block }
+  html, body { touch-action: none; overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none }
+  canvas { display: block; touch-action: none }
+  #rotate { position: fixed; inset: 0; z-index: 50; display: none; place-items: center; background: #000; text-align: center; font: 20px system-ui, sans-serif }
+  @media (orientation: portrait) and (pointer: coarse) { #rotate { display: grid } }
   #overlay { position: fixed; inset: 0; display: grid; place-items: center; background: #0008; cursor: pointer; text-align: center }
   #hud { position: fixed; top: 6px; left: 8px; font: 12px monospace; text-shadow: 0 0 3px #000; pointer-events: none }
 </style>
@@ -16,6 +19,7 @@
 <body>
 <div id="overlay"><div id="msg">Завантаження…</div></div>
 <div id="hud"></div>
+<div id="rotate"><div><div style="font-size:56px">📱↻</div>Поверніть телефон горизонтально</div></div>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

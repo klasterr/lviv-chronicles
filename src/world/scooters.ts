@@ -5,6 +5,7 @@ import type { Player } from '../player/player'
 import type { CityData } from './city'
 import { parkingZones } from './parking'
 import { part, box, T } from './props'
+import { isTouch, type Action } from '../device'
 
 const BOLT = 0x34d186
 const MOUNT_DIST = 2.5 // metres from which E gets you on
@@ -30,6 +31,8 @@ function scooterGeometry() {
 
 /** Bolt e-scooters: two parkings, E to get on / off, R sends a left-behind scooter back to its slot, speedometer while riding. */
 export class Scooters implements System {
+  /** What the touch UI should offer right now. */
+  act: Action[] = []
   private items: Scooter[] = []
   private ridden: Scooter | null = null
   private mesh: THREE.InstancedMesh
@@ -39,7 +42,7 @@ export class Scooters implements System {
   private one = new THREE.Vector3(1, 1, 1)
   private pos = new THREE.Vector3()
   private hint = this.el('position:fixed;left:50%;bottom:24%;transform:translateX(-50%);padding:6px 14px;border-radius:6px;background:#000a;color:#fff;font:15px system-ui,sans-serif;pointer-events:none;display:none')
-  private hud = this.el('position:fixed;right:28px;bottom:26px;padding:10px 18px;border-radius:10px;background:#000b;color:#fff;font:system-ui,sans-serif;text-align:right;pointer-events:none;display:none;border-left:5px solid #34d186')
+  private hud = this.el((isTouch ? 'position:fixed;right:120px;top:8px;padding:6px 14px;' : 'position:fixed;right:28px;bottom:26px;padding:10px 18px;') + 'border-radius:10px;background:#000b;color:#fff;font:system-ui,sans-serif;text-align:right;pointer-events:none;display:none;border-left:5px solid #34d186')
   private shown = ''
   private kmh = -1 // last speed written to the HUD (avoids rewriting the DOM every frame)
 
@@ -64,7 +67,7 @@ export class Scooters implements System {
     parent.add(this.mesh)
 
     addEventListener('keydown', (e) => {
-      if (e.repeat || !player.controls.isLocked || player.seated) return
+      if (e.repeat || !player.active || player.seated) return
       if (e.code === 'KeyE') (player.riding ? this.dismount() : this.mount())
       if (e.code === 'KeyR' && !player.riding) this.send()
     })
@@ -121,19 +124,23 @@ export class Scooters implements System {
     })
 
     let text = ''
-    if (p.controls.isLocked && !p.seated) {
-      if (p.riding) text = 'E — злізти'
+    this.act = []
+    if (p.active && !p.seated) {
+      if (p.riding) { text = 'E — злізти'; this.act = [{ label: 'Злізти', fire: () => this.dismount() }] }
       else {
         const mount = this.nearest(['parked', 'dropped'], MOUNT_DIST) && !p.flying, send = this.nearest(['dropped'], SEND_DIST)
         text = [mount ? 'E — сісти на самокат Bolt' : '', send ? 'R — відправити самокат на парковку' : ''].filter(Boolean).join('  ·  ')
+        if (mount) this.act.push({ label: 'Сісти на самокат', fire: () => this.mount() })
+        if (send) this.act.push({ label: 'На парковку', fire: () => this.send() })
       }
     }
+    if (isTouch) text = '' // the buttons say it
     this.hint.style.display = text ? 'block' : 'none'
     if (text !== this.shown) { this.hint.textContent = text; this.shown = text }
 
     this.hud.style.display = p.riding ? 'block' : 'none'
     const kmh = p.riding ? Math.round(p.speedMs * 3.6) : -1
-    if (kmh !== this.kmh) this.hud.innerHTML = kmh < 0 ? '' : `<span style="font-size:46px;font-weight:700">${kmh}</span> <span style="font-size:16px;opacity:.8">км/год</span><br><span style="font-size:12px;color:#34d186;letter-spacing:2px">BOLT · W газ · S гальмо · A/D поворот</span>`
+    if (kmh !== this.kmh) this.hud.innerHTML = kmh < 0 ? '' : `<span style="font-size:46px;font-weight:700">${kmh}</span> <span style="font-size:16px;opacity:.8">км/год</span><br><span style="font-size:12px;color:#34d186;letter-spacing:2px">BOLT · ${isTouch ? 'джойстик: вперед — газ, назад — гальмо' : 'W газ · S гальмо · A/D поворот'}</span>`
     this.kmh = kmh
   }
 }

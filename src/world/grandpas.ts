@@ -6,6 +6,7 @@ import type { Opponent } from '../chess/ui'
 import type { Colliders } from './colliders'
 import type { CityData } from './city'
 import { part, box, T } from './props'
+import { isTouch, type Action } from '../device'
 
 interface Look { jacket: number; trousers: number; cap: number; hat: boolean; glasses: boolean }
 
@@ -44,6 +45,8 @@ function figure(l: Look) {
 /** Two chess-playing grandpas on the avenue; sit on the free bench opposite one and press G to play. */
 export class Grandpas implements System {
   chessOpen = false // main.ts keeps the start screen hidden while the board is up
+  /** What the touch UI should offer right now. */
+  act: Action[] = []
   private seats: { x: number; z: number; opp: Opponent }[] = []
   private ui: import('../chess/ui').ChessUI | null = null
   private hint = Object.assign(document.createElement('div'), {}) as HTMLDivElement
@@ -69,7 +72,7 @@ export class Grandpas implements System {
     }
 
     addEventListener('keydown', (e) => {
-      if (e.code !== 'KeyG' || e.repeat || this.chessOpen || !player.controls.isLocked) return
+      if (e.code !== 'KeyG' || e.repeat || this.chessOpen || !player.active) return
       const s = this.opposite()
       if (s) void this.open(s)
     })
@@ -85,6 +88,7 @@ export class Grandpas implements System {
   private async open(s: { opp: Opponent }) {
     this.chessOpen = true
     document.exitPointerLock()
+    this.player.touchActive = false // phone: the board takes over the screen, the touch controls step aside
     const { ChessUI } = await import('../chess/ui') // chess.js and the board only load when someone sits down to play
     this.ui ??= new ChessUI(() => this.closed())
     this.ui.open(s.opp)
@@ -92,6 +96,7 @@ export class Grandpas implements System {
 
   private closed() {
     this.chessOpen = false
+    if (isTouch) { this.player.touchActive = true; return }
     this.player.controls.lock() // refused after Esc in some browsers: then the start screen is the way back in
     setTimeout(() => { if (!this.player.controls.isLocked) document.getElementById('overlay')!.style.display = 'grid' }, 400)
   }
@@ -99,9 +104,11 @@ export class Grandpas implements System {
   update() {
     const p = this.player, pos = p.position
     let text = ''
-    if (p.controls.isLocked && !this.chessOpen && !p.riding) {
+    this.act = []
+    if (p.active && !this.chessOpen && !p.riding) {
       const s = this.opposite()
-      if (s) text = `G — зіграти в шахи: ${s.opp.name} (${s.opp.level === 'easy' ? 'легкий' : 'складний'})`
+      if (s) this.act = [{ label: 'Грати в шахи: ' + s.opp.name, fire: () => void this.open(s) }]
+      if (s && !isTouch) text = `G — зіграти в шахи: ${s.opp.name} (${s.opp.level === 'easy' ? 'легкий' : 'складний'})`
       else if (!p.seated) {
         const near = this.seats.find((x) => Math.hypot(x.z - pos.z, x.x - pos.x) < 5)
         if (near) text = `${near.opp.name} грає в шахи. Сядьте на лавку навпроти (клік), щоб зіграти`

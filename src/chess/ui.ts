@@ -1,5 +1,6 @@
 import { Chess, type Square } from 'chess.js'
 import type { Level, Pick } from './engine'
+import { isTouch } from '../device'
 
 export interface Opponent { key: string; name: string; level: Level; quips: { move: string[]; check: string[]; win: string[]; lose: string[] } }
 
@@ -26,7 +27,13 @@ const CSS = `
 #chess .b{color:#1b1b1b}
 #chess .row{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
 #chess button{background:#6b5a3a;border:0;color:#fff;padding:7px 14px;border-radius:6px;font:inherit;cursor:pointer}
-#chess button:hover{background:#85703f}`
+#chess button:hover{background:#85703f}
+@media (max-height:520px){ /* landscape phone: board on the left, title / status / buttons in a column on the right */
+  #chess{--s:max(26px,min(60px,calc((100vh - 44px) / 8),calc((100vw - 260px) / 8)))}
+  #chess .panel{display:grid;grid-template-columns:auto minmax(150px,210px);grid-template-areas:"bd h" "bd st" "bd row";grid-template-rows:auto auto 1fr;column-gap:14px;padding:10px 12px}
+  #chess .bd{grid-area:bd}#chess h2{grid-area:h;font-size:15px}#chess .st{grid-area:st;margin:6px 0}
+  #chess .row{grid-area:row;flex-direction:column;justify-content:flex-end;margin:0}
+}`
 
 /** Chess board overlay: you play white, the grandpa plays black. Games persist per opponent while the page is open. */
 export class ChessUI {
@@ -45,7 +52,7 @@ export class ChessUI {
   constructor(private onClose: (viaButton: boolean) => void) {
     document.head.append(Object.assign(document.createElement('style'), { textContent: CSS }))
     this.root.id = 'chess'
-    this.root.innerHTML = '<div class="panel"><h2></h2><div class="st"></div><div class="bd"></div><div class="row"><button data-a="new">Нова гра</button><button data-a="close">Встати з-за столу (Esc)</button></div></div>'
+    this.root.innerHTML = '<div class="panel"><h2></h2><div class="st"></div><div class="bd"></div><div class="row"><button data-a="new">Нова гра</button><button data-a="close">Встати з-за столу' + (isTouch ? '' : ' (Esc)') + '</button></div></div>'
     document.body.append(this.root)
     this.title = this.root.querySelector('h2')!; this.status = this.root.querySelector('.st')!; this.board = this.root.querySelector('.bd')!
     this.root.addEventListener('click', (e) => {

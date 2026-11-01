@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { Colliders } from '../src/world/colliders'
 import { parkingZones, SLOTS } from '../src/world/parking'
+import { stickKeys } from '../src/player/stick'
 
 // Bolt parkings: 2 zones x SLOTS scooters, each parked with its nose towards the fountain / monument
 const st = { fountain: { x: -25, z: -178, yaw: 0.38 }, monument: { x: 70, z: 67, yaw: -2.74 } }
@@ -51,4 +52,10 @@ const turned = bn.rayBench(20, 2, 0.8, 0, -1, 0, 4)         // rotated bench, ai
 assert.ok(turned && Math.abs(turned.lx + 0.8) < 1e-9, `rotated bench local x, got ${turned?.lx}`)
 const side = bn.rayBench(-3, 0.6, 0, 1, 0, 0, 4)            // level ray from the side hits the end
 assert.ok(side && Math.abs(side.t - (3 - 1.15)) < 1e-9)
+// touch joystick -> keys
+assert.deepEqual(stickKeys(0, 0), [])
+assert.deepEqual(stickKeys(0.1, -0.2), [])                  // inside the dead zone
+assert.deepEqual(stickKeys(0, -0.6), ['KeyW'])
+assert.deepEqual(stickKeys(-0.5, 0.5), ['KeyS', 'KeyA'])    // a diagonal is two keys
+assert.deepEqual(stickKeys(0, -1), ['KeyW', 'ShiftLeft'])   // pushed to the edge = run
 console.log('collide ok')

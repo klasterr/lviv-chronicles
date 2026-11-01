@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 import { Game } from './game'
 import { Player } from './player/player'
+import { TouchControls } from './player/touch'
+import { isTouch } from './device'
 import { Sitting } from './player/sitting'
 import { Scooters } from './world/scooters'
 import { Grandpas } from './world/grandpas'
@@ -11,7 +13,7 @@ import { addAvenue } from './world/avenue'
 import { addSky } from './world/sky'
 import { mark, perfReport } from './perf'
 
-const shadows = !location.search.includes('noshadow')
+const shadows = !location.search.includes('noshadow') && (!isTouch || /[?&]shadow\b/.test(location.search)) // phones: no shadow map unless ?shadow
 const game = new Game(shadows)
 const msg = document.getElementById('msg')!
 const overlay = document.getElementById('overlay')!
@@ -36,14 +38,25 @@ game.scene.add(ground)
 const sky = addSky(game.scene, game.camera, shadows)
 const player = new Player(game.camera, game.renderer.domElement, game.colliders, city.bounds, data.spawn)
 const grandpas = new Grandpas(data, game.scene, city.colliders, player)
-game.systems.push(player, new Sitting(player, game.camera, city.colliders), new Scooters(data, game.scene, player), grandpas, sky.system, props, avenue)
+const sitting = new Sitting(player, game.camera, city.colliders), scooters = new Scooters(data, game.scene, player)
+game.systems.push(player, sitting, scooters, grandpas, sky.system, props, avenue)
+// phone: on-screen controls; the buttons are the systems' current actions (sit, scooter, chess); the menu button pauses
+if (isTouch) game.systems.push(new TouchControls(player, () => [...sitting.act, ...scooters.act, ...grandpas.act], () => { player.touchActive = false; overlay.style.display = 'grid'; pausedAt = performance.now() }))
 // compile shaders and upload textures behind the loading screen instead of stalling the first seconds of play
 await game.renderer.compileAsync(game.scene, game.camera)
 game.frame(0)
 mark('warmed')
 
-msg.innerHTML = 'Натисніть, щоб почати<br><small>WASD — рух, Shift — біг, Space — стрибок<br>F (або двічі Space) — політ: Space вгору, C вниз<br>Клік по лавці — сісти<br>Самокати Bolt (парковки біля фонтану й пам’ятника Шевченку): E — сісти / злізти, R — відправити на парковку<br>Шахи: сядьте на лавку навпроти дідуся (клік), G — зіграти<br>Esc — пауза</small><br><br><small style="opacity:.7">Фото фасадів: Wikimedia Commons, CC BY-SA 4.0 (автори — у /photos/CREDITS.txt) · дані © OpenStreetMap contributors</small>'
-overlay.onclick = () => player.controls.lock()
+const TOUCH_MSG = 'Торкніться, щоб почати<br><small>Лівий палець — рух (до краю — біг), правий — огляд<br>Праворуч: стрибок, ✈ політ і кнопки дій (лавка, самокат Bolt, шахи)<br>☰ — пауза</small><br><br><small style="opacity:.7">Фото фасадів: Wikimedia Commons, CC BY-SA 4.0 · дані © OpenStreetMap contributors</small>'
+msg.innerHTML = isTouch ? TOUCH_MSG : 'Натисніть, щоб почати<br><small>WASD — рух, Shift — біг, Space — стрибок<br>F (або двічі Space) — політ: Space вгору, C вниз<br>Клік по лавці — сісти<br>Самокати Bolt (парковки біля фонтану й пам’ятника Шевченку): E — сісти / злізти, R — відправити на парковку<br>Шахи: сядьте на лавку навпроти дідуся (клік), G — зіграти<br>Esc — пауза</small><br><br><small style="opacity:.7">Фото фасадів: Wikimedia Commons, CC BY-SA 4.0 (автори — у /photos/CREDITS.txt) · дані © OpenStreetMap contributors</small>'
+// no pointer lock on a phone: tapping the start screen turns the touch controls on (and goes fullscreen / landscape where the browser allows it)
+let pausedAt = 0
+const startTouch = () => {
+  if (performance.now() - pausedAt < 400) return // the click that follows the tap on the menu button lands on the pause screen it just opened
+  overlay.style.display = 'none'; player.touchActive = true
+  try { Promise.resolve(document.documentElement.requestFullscreen?.({ navigationUI: 'hide' })).then(() => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape')).catch(() => {}) } catch { /* iOS has no fullscreen API */ }
+}
+overlay.onclick = () => (isTouch ? startTouch() : player.controls.lock())
 player.controls.addEventListener('lock', () => (overlay.style.display = 'none'))
 player.controls.addEventListener('unlock', () => { if (!grandpas.chessOpen) overlay.style.display = 'grid' }) // the chess board releases the pointer on purpose
 
